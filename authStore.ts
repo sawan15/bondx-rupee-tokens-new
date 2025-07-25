@@ -91,7 +91,7 @@ const mockUser: User = {
   id: '1',
   name: 'Ajay Kumar',
   email: 'ajay@example.com',
-  balance: 55000,
+  balance: 0,
   avatar: 'AK',
   isVerified: true,
   isOnboarded: true

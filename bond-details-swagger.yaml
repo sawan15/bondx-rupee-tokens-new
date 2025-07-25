@@ -1,0 +1,731 @@
+openapi: 3.0.3
+info:
+  title: Bond Exchange - Bond Details API
+  description: API endpoints for detailed bond information, OHLC data, order book, and order placement
+  version: 1.0.0
+  contact:
+    name: Bond Exchange Team
+    email: support@bondexchange.com
+
+servers:
+  - url: https://818b612f3950.ngrok-free.app/api
+    description: Development Server (Ngrok)
+  - url: http://localhost:8080/api
+    description: Local Development Server
+
+paths:
+  /bonds/{symbol}:
+    get:
+      tags:
+        - Bond Details
+      summary: Get Bond Details
+      description: Retrieve comprehensive bond information including OHLC data, order book, and trading details
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Bond symbol (e.g., RELIANCE25, TATA24, HDFC26)
+          schema:
+            type: string
+            example: "RELIANCE25"
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Bond details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BondDetailsResponse'
+              examples:
+                reliance_bond:
+                  summary: Reliance Industries Bond 2025
+                  value:
+                    status_code: 200
+                    status: "success"
+                    data:
+                      symbol: "RELIANCE25"
+                      name: "Reliance Industries Bond 2025"
+                      actual_price: "14500"
+                      current_price: "1000"
+                      change: "0"
+                      change_percent: "0"
+                      yield_rate: "7.5"
+                      maturity_date: "2026-07-25"
+                      face_value: "1000"
+                      ohlc:
+                        - date: "2025-07-25"
+                          open: "1000"
+                          high: "1000"
+                          low: "1000"
+                          close: "1000"
+                          volume: "0"
+                      order_book:
+                        bids: null
+                        asks: null
+                      is_active: true
+                tata_bond:
+                  summary: Tata Motors Bond 2024
+                  value:
+                    status_code: 200
+                    status: "success"
+                    data:
+                      symbol: "TATA24"
+                      name: "Tata Motors Bond 2024"
+                      actual_price: "12800"
+                      current_price: "1000"
+                      change: "5"
+                      change_percent: "0.5"
+                      yield_rate: "8.2"
+                      maturity_date: "2026-07-25"
+                      face_value: "1000"
+                      ohlc:
+                        - date: "2025-07-25"
+                          open: "995"
+                          high: "1005"
+                          low: "990"
+                          close: "1000"
+                          volume: "150"
+                      order_book:
+                        bids:
+                          - price: "999"
+                            quantity: "50"
+                          - price: "998"
+                            quantity: "25"
+                        asks:
+                          - price: "1001"
+                            quantity: "30"
+                          - price: "1002"
+                            quantity: "75"
+                      is_active: true
+        '404':
+          description: Bond not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "Bond with symbol 'INVALID123' not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 500
+                status: "error"
+                message: "Internal server error"
+
+  /orders:
+    post:
+      tags:
+        - Bond Details
+      summary: Place Order
+      description: Place a buy or sell order for a specific bond
+      parameters:
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+            examples:
+              buy_order:
+                summary: Buy Order
+                value:
+                  user_id: "6883c9087ada069168474cb6"
+                  bond_symbol: "RELIANCE25"
+                  order_type: "buy"
+                  quantity: "10"
+                  price: "999"
+                  order_mode: "limit"
+              sell_order:
+                summary: Sell Order
+                value:
+                  user_id: "6883c9087ada069168474cb6"
+                  bond_symbol: "TATA24"
+                  order_type: "sell"
+                  quantity: "5"
+                  price: "1001"
+                  order_mode: "limit"
+              market_buy:
+                summary: Market Buy Order
+                value:
+                  user_id: "6883c9087ada069168474cb6"
+                  bond_symbol: "HDFC26"
+                  order_type: "buy"
+                  quantity: "25"
+                  order_mode: "market"
+      responses:
+        '200':
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+              examples:
+                successful_order:
+                  summary: Order Placed Successfully
+                  value:
+                    status_code: 200
+                    status: "success"
+                    message: "Order placed successfully"
+                    data:
+                      order_id: "ORD_20250125_001"
+                      user_id: "6883c9087ada069168474cb6"
+                      bond_symbol: "RELIANCE25"
+                      order_type: "buy"
+                      quantity: "10"
+                      price: "999"
+                      order_mode: "limit"
+                      status: "pending"
+                      total_amount: "9990"
+                      created_at: "2025-01-25T10:30:00Z"
+                      expires_at: "2025-01-26T10:30:00Z"
+        '400':
+          description: Bad Request - Invalid order data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficient_funds:
+                  summary: Insufficient Funds
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Insufficient wallet balance. Required: ₹9,990, Available: ₹5,000"
+                invalid_quantity:
+                  summary: Invalid Quantity
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Minimum order quantity is 1 token"
+                bond_inactive:
+                  summary: Bond Not Active
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Bond RELIANCE25 is not currently active for trading"
+        '422':
+          description: Unprocessable Entity - Validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 422
+                status: "error"
+                message: "Validation failed"
+                errors:
+                  - field: "quantity"
+                    message: "Quantity must be a positive number"
+                  - field: "price"
+                    message: "Price must be greater than 0"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 500
+                status: "error"
+                message: "Order processing failed"
+
+    get:
+      tags:
+        - Bond Details
+      summary: Get User Orders
+      description: Retrieve user's order history and active orders
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          description: Unique identifier for the user
+          schema:
+            type: string
+            example: "6883c9087ada069168474cb6"
+        - name: bond_symbol
+          in: query
+          required: false
+          description: Filter orders by specific bond symbol
+          schema:
+            type: string
+            example: "RELIANCE25"
+        - name: status
+          in: query
+          required: false
+          description: Filter by order status
+          schema:
+            type: string
+            enum: ["pending", "completed", "cancelled", "partially_filled"]
+            example: "pending"
+        - name: order_type
+          in: query
+          required: false
+          description: Filter by order type
+          schema:
+            type: string
+            enum: ["buy", "sell"]
+            example: "buy"
+        - name: limit
+          in: query
+          required: false
+          description: Number of orders to return (default 50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+            example: 20
+        - name: offset
+          in: query
+          required: false
+          description: Number of orders to skip (for pagination)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersListResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "User not found"
+
+  /bonds/:
+    get:
+      tags:
+        - Bond Details
+      summary: Get All Bonds
+      description: Retrieve list of all available bonds (used for bond comparison and navigation)
+      parameters:
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Bonds list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BondsListResponse'
+
+components:
+  schemas:
+    BondDetailsResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          $ref: '#/components/schemas/BondDetails'
+
+    BondDetails:
+      type: object
+      required:
+        - symbol
+        - name
+        - current_price
+        - yield_rate
+        - maturity_date
+        - face_value
+        - is_active
+      properties:
+        symbol:
+          type: string
+          description: "Bond symbol/ticker"
+          example: "RELIANCE25"
+        name:
+          type: string
+          description: "Full bond name"
+          example: "Reliance Industries Bond 2025"
+        actual_price:
+          type: string
+          description: "Actual bond price reference (decimal string)"
+          example: "14500"
+        current_price:
+          type: string
+          description: "Current trading price per token (decimal string)"
+          example: "1000"
+        change:
+          type: string
+          description: "Price change from previous close (decimal string)"
+          example: "5"
+        change_percent:
+          type: string
+          description: "Percentage change from previous close (decimal string)"
+          example: "0.5"
+        yield_rate:
+          type: string
+          description: "Yield to maturity percentage (decimal string)"
+          example: "7.5"
+        maturity_date:
+          type: string
+          format: date
+          description: "Bond maturity date"
+          example: "2026-07-25"
+        face_value:
+          type: string
+          description: "Face value of the bond (decimal string)"
+          example: "1000"
+        ohlc:
+          type: array
+          description: "OHLC (Open, High, Low, Close) data for charting"
+          items:
+            $ref: '#/components/schemas/OHLCData'
+        order_book:
+          $ref: '#/components/schemas/OrderBook'
+        is_active:
+          type: boolean
+          description: "Whether the bond is currently active for trading"
+          example: true
+
+    OHLCData:
+      type: object
+      required:
+        - date
+        - open
+        - high
+        - low
+        - close
+        - volume
+      properties:
+        date:
+          type: string
+          format: date
+          description: "Trading date"
+          example: "2025-07-25"
+        open:
+          type: string
+          description: "Opening price (decimal string)"
+          example: "995"
+        high:
+          type: string
+          description: "Highest price (decimal string)"
+          example: "1005"
+        low:
+          type: string
+          description: "Lowest price (decimal string)"
+          example: "990"
+        close:
+          type: string
+          description: "Closing price (decimal string)"
+          example: "1000"
+        volume:
+          type: string
+          description: "Trading volume (decimal string)"
+          example: "150"
+
+    OrderBook:
+      type: object
+      properties:
+        bids:
+          type: array
+          nullable: true
+          description: "Buy orders (highest price first)"
+          items:
+            $ref: '#/components/schemas/OrderBookEntry'
+        asks:
+          type: array
+          nullable: true
+          description: "Sell orders (lowest price first)"
+          items:
+            $ref: '#/components/schemas/OrderBookEntry'
+
+    OrderBookEntry:
+      type: object
+      required:
+        - price
+        - quantity
+      properties:
+        price:
+          type: string
+          description: "Order price (decimal string)"
+          example: "999"
+        quantity:
+          type: string
+          description: "Order quantity (decimal string)"
+          example: "50"
+
+    OrderRequest:
+      type: object
+      required:
+        - user_id
+        - bond_symbol
+        - order_type
+        - quantity
+        - order_mode
+      properties:
+        user_id:
+          type: string
+          description: "Unique identifier for the user"
+          example: "6883c9087ada069168474cb6"
+        bond_symbol:
+          type: string
+          description: "Bond symbol to trade"
+          example: "RELIANCE25"
+        order_type:
+          type: string
+          enum: ["buy", "sell"]
+          description: "Type of order"
+          example: "buy"
+        quantity:
+          type: string
+          description: "Number of tokens to trade (decimal string)"
+          example: "10"
+        price:
+          type: string
+          description: "Order price (required for limit orders, decimal string)"
+          example: "999"
+        order_mode:
+          type: string
+          enum: ["market", "limit"]
+          description: "Order execution mode"
+          example: "limit"
+        validity:
+          type: string
+          enum: ["day", "ioc", "gtc"]
+          description: "Order validity (Day/Immediate-or-Cancel/Good-Till-Cancelled)"
+          default: "day"
+          example: "day"
+
+    OrderResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        message:
+          type: string
+          example: "Order placed successfully"
+        data:
+          $ref: '#/components/schemas/OrderData'
+
+    OrderData:
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: "Unique order identifier"
+          example: "ORD_20250125_001"
+        user_id:
+          type: string
+          description: "User ID who placed the order"
+          example: "6883c9087ada069168474cb6"
+        bond_symbol:
+          type: string
+          description: "Bond symbol"
+          example: "RELIANCE25"
+        order_type:
+          type: string
+          enum: ["buy", "sell"]
+          example: "buy"
+        quantity:
+          type: string
+          description: "Order quantity (decimal string)"
+          example: "10"
+        price:
+          type: string
+          description: "Order price (decimal string)"
+          example: "999"
+        order_mode:
+          type: string
+          enum: ["market", "limit"]
+          example: "limit"
+        status:
+          type: string
+          enum: ["pending", "completed", "cancelled", "partially_filled"]
+          example: "pending"
+        total_amount:
+          type: string
+          description: "Total order value (decimal string)"
+          example: "9990"
+        filled_quantity:
+          type: string
+          description: "Quantity filled so far (decimal string)"
+          example: "0"
+        created_at:
+          type: string
+          format: date-time
+          description: "Order creation timestamp"
+          example: "2025-01-25T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: "Order last update timestamp"
+          example: "2025-01-25T10:30:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          description: "Order expiration timestamp"
+          example: "2025-01-26T10:30:00Z"
+
+    OrdersListResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          $ref: '#/components/schemas/OrdersListData'
+
+    OrdersListData:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderData'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    BondsListResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BondSummary'
+
+    BondSummary:
+      type: object
+      properties:
+        symbol:
+          type: string
+          example: "RELIANCE25"
+        name:
+          type: string
+          example: "Reliance Industries Bond 2025"
+        current_price:
+          type: string
+          example: "1000"
+        change:
+          type: string
+          example: "5"
+        change_percent:
+          type: string
+          example: "0.5"
+        yield_rate:
+          type: string
+          example: "7.5"
+        maturity_date:
+          type: string
+          format: date
+          example: "2026-07-25"
+        is_active:
+          type: boolean
+          example: true
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: "Total number of records"
+          example: 156
+        limit:
+          type: integer
+          description: "Number of records per page"
+          example: 50
+        offset:
+          type: integer
+          description: "Number of records skipped"
+          example: 0
+        has_more:
+          type: boolean
+          description: "Whether more records are available"
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 400
+        status:
+          type: string
+          enum: ["error"]
+          example: "error"
+        message:
+          type: string
+          example: "Error description"
+        errors:
+          type: array
+          description: "Detailed validation errors (optional)"
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "quantity"
+              message:
+                type: string
+                example: "Quantity must be greater than 0"
+
+tags:
+  - name: Bond Details
+    description: Detailed bond information, OHLC data, order book, and order placement 

@@ -220,7 +220,7 @@ const BasicInfoStep = ({ data, updateData, onNext, onBack }: BasicInfoStepProps)
               <CheckCircle className="w-12 h-12 text-success mx-auto" />
               <h3 className="text-lg font-semibold text-success">Account Created Successfully!</h3>
               <p className="text-sm text-muted-foreground">
-                Welcome to BondX! Redirecting you to the marketplace...
+                Great! Now let's verify your identity to complete your setup...
               </p>
             </div>
           </CardContent>

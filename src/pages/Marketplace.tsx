@@ -1,254 +1,134 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, TrendingUp, TrendingDown, Heart, ShoppingCart, BarChart3, Star, Lightbulb, Award, Calendar, Target, IndianRupee } from 'lucide-react';
+import { Search, Filter, TrendingUp, TrendingDown, Heart, ShoppingCart, BarChart3, Star, Lightbulb, Award, Calendar, Target, IndianRupee, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ApiService, BondApiResponse } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Bond {
-  id: string;
-  name: string;
-  issuer: string;
-  rating: string;
-  sector: string;
-  ytm: number;
-  tokenPrice: number;
-  priceChange: number;
-  priceChangePercent: number;
-  totalTokens: number;
-  availableTokens: number;
-  volume24h: string;
-  maturityDate: string;
-  maturityYears: number;
-  couponRate: number;
-  tags: string[];
-  isPopular: boolean;
+  id: string;               // from API: symbol
+  name: string;             // from API: name
+  issuer: string;           // static fallback
+  rating: string;           // static fallback  
+  sector: string;           // static fallback
+  ytm: number;              // from API: yield_rate
+  tokenPrice: number;       // from API: current_price
+  priceChange: number;      // from API: change
+  priceChangePercent: number; // from API: change_percent
+  totalTokens: number;      // static fallback
+  availableTokens: number;  // static fallback
+  volume24h: string;        // static fallback
+  maturityDate: string;     // from API: maturity_date
+  maturityYears: number;    // calculated from maturity_date
+  couponRate: number;       // use ytm as fallback
+  tags: string[];           // static fallback
+  isPopular: boolean;       // static fallback
+  isActive: boolean;        // from API: is_active
 }
 
-const demoBoonds: Bond[] = [
-  // Banking Sector
-  {
-    id: 'hdfc-78-26',
-    name: "HDFC Bank 7.8% 2026",
-    issuer: "HDFC Bank Limited", 
-    rating: "AAA",
-    sector: "Banking",
-    ytm: 7.8,
-    tokenPrice: 98.50,
-    priceChange: -1.50,
-    priceChangePercent: -1.5,
-    totalTokens: 250,
-    availableTokens: 89,
-    volume24h: "₹1.8Cr",
-    maturityDate: "Dec 2026",
-    maturityYears: 2.1,
-    couponRate: 7.8,
-    tags: ["banking"],
-    isPopular: false
-  },
-  {
-    id: 'icici-82-27', 
-    name: "ICICI Bank 8.2% 2027",
-    issuer: "ICICI Bank Limited",
-    rating: "AAA", 
-    sector: "Banking",
-    ytm: 8.2,
-    tokenPrice: 101.20,
-    priceChange: 2.20,
-    priceChangePercent: 2.2,
-    totalTokens: 300,
-    availableTokens: 156,
-    volume24h: "₹1.2Cr",
-    maturityDate: "Mar 2027",
-    maturityYears: 2.3,
-    couponRate: 8.2,
-    tags: [],
-    isPopular: false
-  },
-  // Energy Sector  
-  {
-    id: 'rel-85-27',
-    name: "Reliance Industries 8.5% 2027",
-    issuer: "Reliance Industries Limited",
-    rating: "AAA",
-    sector: "Energy", 
-    ytm: 8.5,
-    tokenPrice: 100.15,
-    priceChange: 0.15,
-    priceChangePercent: 0.15,
+// Static fallback data for fields not available in API
+const staticBondData: Record<string, Partial<Bond>> = {
+  'RELIANCE25': {
+    issuer: 'Reliance Industries Limited',
+    rating: 'AAA',
+    sector: 'Energy',
     totalTokens: 150,
     availableTokens: 67,
-    volume24h: "₹2.3Cr",
-    maturityDate: "Mar 2027", 
-    maturityYears: 3.2,
-    couponRate: 8.5,
-    tags: ["popular"],
+    volume24h: '₹2.3Cr',
+    tags: ['popular'],
     isPopular: true
   },
-  {
-    id: 'tata-power-92-28',
-    name: "Tata Power 9.2% 2028", 
-    issuer: "Tata Power Company Limited",
-    rating: "AA+",
-    sector: "Energy",
-    ytm: 9.2,
-    tokenPrice: 112.30,
-    priceChange: 3.80,
-    priceChangePercent: 3.5,
-    totalTokens: 200,
-    availableTokens: 178,
-    volume24h: "₹95L",
-    maturityDate: "Jun 2028",
-    maturityYears: 4.1, 
-    couponRate: 9.2,
-    tags: ["new"],
+  'TATA24': {
+    issuer: 'Tata Motors Limited',
+    rating: 'AA+',
+    sector: 'Automotive',
+    totalTokens: 120,
+    availableTokens: 85,
+    volume24h: '₹1.5Cr',
+    tags: [],
     isPopular: false
   },
-  // Technology
-  {
-    id: 'infosys-72-25',
-    name: "Infosys 7.2% 2025",
-    issuer: "Infosys Limited", 
-    rating: "AA+",
-    sector: "Technology",
-    ytm: 7.2,
-    tokenPrice: 99.50,
-    priceChange: -0.50,
-    priceChangePercent: -0.5,
+  'HDFC26': {
+    issuer: 'HDFC Bank Limited',
+    rating: 'AAA',
+    sector: 'Banking',
+    totalTokens: 200,
+    availableTokens: 156,
+    volume24h: '₹1.8Cr',
+    tags: [],
+    isPopular: false
+  },
+  'ICICI27': {
+    issuer: 'ICICI Bank Limited',
+    rating: 'AAA',
+    sector: 'Banking',
+    totalTokens: 180,
+    availableTokens: 132,
+    volume24h: '₹1.2Cr',
+    tags: [],
+    isPopular: false
+  },
+  'INFOSYS28': {
+    issuer: 'Infosys Limited',
+    rating: 'AA+',
+    sector: 'Technology',
     totalTokens: 100,
     availableTokens: 45,
-    volume24h: "₹1.2Cr",
-    maturityDate: "Sep 2025",
-    maturityYears: 1.7,
-    couponRate: 7.2,
-    tags: [],
+    volume24h: '₹95L',
+    tags: ['new'],
     isPopular: false
-  },
-  {
-    id: 'tcs-75-26',
-    name: "TCS 7.5% 2026",
-    issuer: "Tata Consultancy Services",
-    rating: "AAA",
-    sector: "Technology", 
-    ytm: 7.5,
-    tokenPrice: 102.80,
-    priceChange: 1.30,
-    priceChangePercent: 1.3,
-    totalTokens: 180,
-    availableTokens: 92,
-    volume24h: "₹1.0Cr",
-    maturityDate: "Nov 2026",
-    maturityYears: 2.9,
-    couponRate: 7.5,
-    tags: [],
-    isPopular: false
-  },
-  // Infrastructure
-  {
-    id: 'lt-finance-88-27',
-    name: "L&T Finance 8.8% 2027",
-    issuer: "L&T Finance Holdings Limited",
-    rating: "A+", 
-    sector: "Infrastructure",
-    ytm: 8.8,
-    tokenPrice: 106.50,
-    priceChange: 2.10,
-    priceChangePercent: 2.0,
-    totalTokens: 220,
-    availableTokens: 134,
-    volume24h: "₹62L",
-    maturityDate: "Apr 2027",
-    maturityYears: 3.5,
-    couponRate: 8.8,
-    tags: [],
-    isPopular: false
-  },
-  {
-    id: 'powergrid-79-29',
-    name: "Power Grid Corp 7.9% 2029",
-    issuer: "Power Grid Corporation of India",
-    rating: "AAA",
-    sector: "Infrastructure",
-    ytm: 7.9, 
-    tokenPrice: 105.20,
-    priceChange: 1.70,
-    priceChangePercent: 1.6,
-    totalTokens: 250,
-    availableTokens: 201,
-    volume24h: "₹80L",
-    maturityDate: "Aug 2029",
-    maturityYears: 5.1,
-    couponRate: 7.9,
-    tags: [],
-    isPopular: false
-  },
-  // FMCG
-  {
-    id: 'itc-80-29',
-    name: "ITC 8.0% 2029",
-    issuer: "ITC Limited",
-    rating: "AA",
-    sector: "FMCG",
-    ytm: 8.0,
-    tokenPrice: 108.00,
-    priceChange: 0.80,
-    priceChangePercent: 0.7,
-    totalTokens: 160,
-    availableTokens: 98,
-    volume24h: "₹75L",
-    maturityDate: "Nov 2029", 
-    maturityYears: 5.2,
-    couponRate: 8.0,
-    tags: [],
-    isPopular: false
-  },
-  {
-    id: 'hul-71-26',
-    name: "Hindustan Unilever 7.1% 2026",
-    issuer: "Hindustan Unilever Limited",
-    rating: "AAA",
-    sector: "FMCG", 
-    ytm: 7.1,
-    tokenPrice: 96.80,
-    priceChange: -0.70,
-    priceChangePercent: -0.7,
-    totalTokens: 120,
-    availableTokens: 67,
-    volume24h: "₹55L",
-    maturityDate: "Jul 2026",
-    maturityYears: 2.6,
-    couponRate: 7.1,
-    tags: [],
-    isPopular: false
-  },
-  // Financial Services  
-  {
-    id: 'bajaj-finance-95-28',
-    name: "Bajaj Finance 9.5% 2028",
-    issuer: "Bajaj Finance Limited",
-    rating: "AA+",
-    sector: "Financial Services",
-    ytm: 9.5, 
-    tokenPrice: 115.60,
-    priceChange: 4.20,
-    priceChangePercent: 3.8,
-    totalTokens: 190,
-    availableTokens: 145,
-    volume24h: "₹1.1Cr",
-    maturityDate: "Dec 2028",
-    maturityYears: 4.9,
-    couponRate: 9.5,
-    tags: ["popular"],
-    isPopular: true
   }
-];
+};
+
+// Function to calculate years to maturity from date string
+const calculateMaturityYears = (maturityDate: string): number => {
+  const maturity = new Date(maturityDate);
+  const now = new Date();
+  const diffTime = maturity.getTime() - now.getTime();
+  const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+  return Math.max(0, parseFloat(diffYears.toFixed(1)));
+};
+
+// Function to transform API bond data to UI Bond interface
+const transformApiBondToUIBond = (apiBond: BondApiResponse): Bond => {
+  const staticData = staticBondData[apiBond.symbol] || {};
+  
+  return {
+    id: apiBond.symbol,
+    name: apiBond.name,
+    issuer: staticData.issuer || 'Unknown Issuer',
+    rating: staticData.rating || 'Unrated',
+    sector: staticData.sector || 'Other',
+    ytm: parseFloat(apiBond.yield_rate),
+    tokenPrice: parseFloat(apiBond.current_price),
+    priceChange: parseFloat(apiBond.change),
+    priceChangePercent: parseFloat(apiBond.change_percent),
+    totalTokens: staticData.totalTokens || 100,
+    availableTokens: staticData.availableTokens || 50,
+    volume24h: staticData.volume24h || '₹50L',
+    maturityDate: apiBond.maturity_date,
+    maturityYears: calculateMaturityYears(apiBond.maturity_date),
+    couponRate: parseFloat(apiBond.yield_rate), // Use YTM as coupon rate fallback
+    tags: staticData.tags || [],
+    isPopular: staticData.isPopular || false,
+    isActive: apiBond.is_active
+  };
+};
 
 const Marketplace = () => {
-  // Mock user wallet balance
-  const userBalance = 65000;
+  const { user } = useAuthStore();
+  
+  // API state
+  const [bonds, setBonds] = useState<Bond[]>([]);
+  const [userBalance, setUserBalance] = useState(0);
+  const [marketStats, setMarketStats] = useState({ totalBonds: 0, averageYtm: '0', volumeToday: '₹0' });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters and search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -260,6 +140,86 @@ const Marketplace = () => {
 
   // Investment calculator states for each bond
   const [investmentAmounts, setInvestmentAmounts] = useState<{[key: string]: string}>({});
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch bonds data (always fetch, regardless of auth)
+        try {
+          const bondsResponse = await ApiService.getBonds();
+          
+          if (bondsResponse.status === 'success') {
+            const transformedBonds = bondsResponse.data.map(transformApiBondToUIBond);
+            setBonds(transformedBonds);
+          } else {
+            throw new Error('API returned error status');
+          }
+        } catch (apiError) {
+          // Fallback to static demo data when API is not available
+          const { demoBondTokens } = await import('@/data/demoData');
+          // Convert BondToken to Bond format
+          const fallbackBonds: Bond[] = demoBondTokens.map(token => ({
+            id: token.id,
+            name: token.name,
+            issuer: token.issuer,
+            rating: token.rating,
+            sector: token.sector,
+            ytm: token.ytm,
+            tokenPrice: token.tokenPrice,
+            priceChange: token.priceChange24h,
+            priceChangePercent: token.priceChangePercent24h,
+            totalTokens: token.totalTokens,
+            availableTokens: token.availableTokens,
+            volume24h: token.volume24hValue,
+            maturityDate: token.maturityDate.toISOString().split('T')[0],
+            maturityYears: token.maturityYears,
+            couponRate: token.couponRate,
+            tags: [],
+            isPopular: token.isPopular,
+            isActive: true // Assume all demo bonds are active
+          }));
+          setBonds(fallbackBonds);
+        }
+
+        // Fetch user dashboard if user is authenticated
+        if (user?.id) {
+          try {
+            const dashboardResponse = await ApiService.getUserDashboard(user.id);
+            
+            if (dashboardResponse.status === 'success') {
+              setUserBalance(parseFloat(dashboardResponse.data.user.available_to_invest));
+              setMarketStats({
+                totalBonds: dashboardResponse.data.marketplace_stats.total_bonds,
+                averageYtm: dashboardResponse.data.marketplace_stats.average_ytm,
+                volumeToday: '₹12L' // Static fallback for volume
+              });
+            }
+          } catch (userError) {
+            // Continue with default values if user data fails
+            setUserBalance(0);
+          }
+        } else {
+          // Use fallback data if user not authenticated
+          setUserBalance(0);
+          setMarketStats({
+            totalBonds: bonds.length,
+            averageYtm: '8.7',
+            volumeToday: '₹12L'
+          });
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch marketplace data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id]); // Re-fetch when user changes
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -292,20 +252,20 @@ const Marketplace = () => {
   };
 
   const calculateTokens = (bondId: string, amount: number) => {
-    const bond = demoBoonds.find(b => b.id === bondId);
+    const bond = bonds.find(b => b.id === bondId);
     if (!bond) return 0;
     return amount / bond.tokenPrice;
   };
 
   const calculateCoupons = (bondId: string, amount: number) => {
-    const bond = demoBoonds.find(b => b.id === bondId);
+    const bond = bonds.find(b => b.id === bondId);
     if (!bond) return 0;
     const tokens = calculateTokens(bondId, amount);
     return (tokens * bond.couponRate * 1000) / 4; // Quarterly coupons
   };
 
   const calculateMaturityPayout = (bondId: string, amount: number) => {
-    const bond = demoBoonds.find(b => b.id === bondId);
+    const bond = bonds.find(b => b.id === bondId);
     if (!bond) return 0;
     const tokens = calculateTokens(bondId, amount);
     return tokens * 1000; // Par value
@@ -317,7 +277,7 @@ const Marketplace = () => {
 
   // Filter and search logic
   const filteredBonds = useMemo(() => {
-    let filtered = demoBoonds.filter(bond => {
+    let filtered = bonds.filter(bond => {
       // Search filter
       const matchesSearch = bond.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            bond.issuer.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -370,7 +330,7 @@ const Marketplace = () => {
     });
 
     return filtered;
-  }, [searchQuery, ratingFilter, sectorFilter, investmentFilter, maturityFilter, sortBy]);
+  }, [bonds, searchQuery, ratingFilter, sectorFilter, investmentFilter, maturityFilter, sortBy]);
 
   return (
     <TooltipProvider>
@@ -379,13 +339,24 @@ const Marketplace = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Bond Token Marketplace</h1>
-            <div className="flex items-center space-x-6 text-muted-foreground">
-              <span>24 bonds available</span>
-              <span>•</span>
-              <span>Average 8.7% YTM</span>
-              <span>•</span>
-              <span>₹12L traded today</span>
-            </div>
+            {isLoading ? (
+              <div className="flex items-center space-x-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Loading marketplace data...</span>
+              </div>
+            ) : error ? (
+              <div className="text-destructive">
+                <span>Error loading data: {error}</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-6 text-muted-foreground">
+                <span>{marketStats.totalBonds} bonds available</span>
+                <span>•</span>
+                <span>Average {marketStats.averageYtm}% YTM</span>
+                <span>•</span>
+                <span>{marketStats.volumeToday} traded today</span>
+              </div>
+            )}
             <p className="text-lg text-primary mt-2">Own fractions of premium bonds starting from ₹100</p>
           </div>
           
@@ -552,8 +523,28 @@ const Marketplace = () => {
         </div>
 
         {/* Bond Token Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredBonds.map((bond) => {
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+              <p className="text-lg text-muted-foreground">Loading bonds...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-lg text-destructive mb-2">Failed to load bonds</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="mt-4"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredBonds.map((bond) => {
             const investmentAmount = parseFloat(investmentAmounts[bond.id] || '0');
             const tokensCalculated = calculateTokens(bond.id, investmentAmount);
             const couponIncome = calculateCoupons(bond.id, investmentAmount);
@@ -717,9 +708,10 @@ const Marketplace = () => {
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
 
-        {filteredBonds.length === 0 && (
+        {!isLoading && !error && filteredBonds.length === 0 && (
           <div className="text-center py-12">
             <p className="text-lg text-muted-foreground">No bonds found matching your criteria</p>
             <p className="text-sm text-muted-foreground mt-2">Try adjusting your filters or search terms</p>

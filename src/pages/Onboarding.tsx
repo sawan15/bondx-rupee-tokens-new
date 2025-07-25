@@ -58,13 +58,7 @@ const Onboarding = () => {
     startOnboarding();
   }, [startOnboarding]);
 
-  // Redirect to marketplace if user becomes authenticated (after signup)
-  useEffect(() => {
-    if (isAuthenticated && currentStep === 2) {
-      // User just completed signup, redirect to marketplace
-      navigate('/marketplace');
-    }
-  }, [isAuthenticated, currentStep, navigate]);
+  // Note: Navigation to marketplace happens in handleCompleteOnboarding after all steps are done
 
   const updateData = (data: Partial<OnboardingData>) => {
     setOnboardingData(prev => ({ ...prev, ...data }));
@@ -87,13 +81,8 @@ const Onboarding = () => {
   };
 
   const handleCompleteOnboarding = () => {
-    // Complete onboarding with user data
-    completeOnboarding({
-      id: '1',
-      name: onboardingData.fullName,
-      email: onboardingData.email,
-      balance: 55000
-    });
+    // Complete onboarding - this will set isAuthenticated to true
+    completeOnboarding({});
     
     // Redirect to marketplace
     navigate('/marketplace');

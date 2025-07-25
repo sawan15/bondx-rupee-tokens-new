@@ -1,0 +1,527 @@
+openapi: 3.0.3
+info:
+  title: Bond Exchange - Portfolio API
+  description: API endpoints for portfolio management and holdings tracking
+  version: 1.0.0
+  contact:
+    name: Bond Exchange Team
+    email: support@bondexchange.com
+
+servers:
+  - url: https://818b612f3950.ngrok-free.app/api
+    description: Development Server (Ngrok)
+  - url: http://localhost:8080/api
+    description: Local Development Server
+
+paths:
+  /user/portfolio:
+    get:
+      tags:
+        - Portfolio
+      summary: Get User Portfolio
+      description: Retrieve user's bond portfolio including holdings and summary statistics
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          description: Unique identifier for the user
+          schema:
+            type: string
+            example: "6883c9087ada069168474cb6"
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Portfolio data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioResponse'
+              examples:
+                empty_portfolio:
+                  summary: Empty Portfolio (New User)
+                  value:
+                    status_code: 200
+                    status: "success"
+                    data:
+                      holdings: null
+                      summary:
+                        total_invested: "0"
+                        total_market_value: "0"
+                        total_pnl: "0"
+                        total_pnl_percent: "0"
+                with_holdings:
+                  summary: Portfolio with Holdings
+                  value:
+                    status_code: 200
+                    status: "success"
+                    data:
+                      holdings:
+                        - symbol: "RELIANCE25"
+                          name: "Reliance Industries Bond 2025"
+                          quantity: "10.5"
+                          average_buy_price: "995.50"
+                          current_price: "1005.75"
+                          total_cost: "10452.75"
+                          market_value: "10560.38"
+                          pnl: "107.63"
+                          pnl_percent: "1.03"
+                        - symbol: "HDFC26"
+                          name: "HDFC Bank Bond 2026"
+                          quantity: "5.0"
+                          average_buy_price: "1002.00"
+                          current_price: "998.25"
+                          total_cost: "5010.00"
+                          market_value: "4991.25"
+                          pnl: "-18.75"
+                          pnl_percent: "-0.37"
+                      summary:
+                        total_invested: "15462.75"
+                        total_market_value: "15551.63"
+                        total_pnl: "88.88"
+                        total_pnl_percent: "0.57"
+        '400':
+          description: Bad Request - Missing or invalid user_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 400
+                status: "error"
+                message: "user_id parameter is required"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "User not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 500
+                status: "error"
+                message: "Internal server error"
+
+  /user/dashboard:
+    get:
+      tags:
+        - Portfolio
+      summary: Get User Dashboard
+      description: Retrieve user dashboard data including wallet balance and marketplace statistics
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          description: Unique identifier for the user
+          schema:
+            type: string
+            example: "6883c9087ada069168474cb6"
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+              example:
+                status_code: 200
+                status: "success"
+                data:
+                  user:
+                    name: "Demo Wallet User"
+                    wallet_balance: "50000"
+                    available_to_invest: "45000"
+                  marketplace_stats:
+                    total_bonds: 5
+                    average_ytm: "7.22"
+
+  /bonds:
+    get:
+      tags:
+        - Portfolio
+      summary: Get Available Bonds
+      description: Retrieve list of all available bonds for portfolio analysis
+      parameters:
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Bonds list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BondsListResponse'
+
+  /bonds/{symbol}:
+    get:
+      tags:
+        - Portfolio
+      summary: Get Bond Details
+      description: Retrieve detailed information about a specific bond including OHLC data and order book
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Bond symbol (e.g., RELIANCE25)
+          schema:
+            type: string
+            example: "RELIANCE25"
+        - name: ngrok-skip-browser-warning
+          in: header
+          required: false
+          description: Skip ngrok browser warning page
+          schema:
+            type: string
+            enum: ["true"]
+            example: "true"
+      responses:
+        '200':
+          description: Bond details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BondDetailsResponse'
+
+components:
+  schemas:
+    PortfolioResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          $ref: '#/components/schemas/PortfolioData'
+
+    PortfolioData:
+      type: object
+      properties:
+        holdings:
+          type: array
+          nullable: true
+          description: "Array of portfolio holdings or null if no holdings"
+          items:
+            $ref: '#/components/schemas/PortfolioHolding'
+        summary:
+          $ref: '#/components/schemas/PortfolioSummary'
+
+    PortfolioHolding:
+      type: object
+      required:
+        - symbol
+        - name
+        - quantity
+        - average_buy_price
+        - current_price
+        - total_cost
+        - market_value
+        - pnl
+        - pnl_percent
+      properties:
+        symbol:
+          type: string
+          description: "Bond symbol/ticker"
+          example: "RELIANCE25"
+        name:
+          type: string
+          description: "Full bond name"
+          example: "Reliance Industries Bond 2025"
+        quantity:
+          type: string
+          description: "Number of bond tokens owned (decimal string)"
+          example: "10.5"
+        average_buy_price:
+          type: string
+          description: "Average purchase price per token (decimal string)"
+          example: "995.50"
+        current_price:
+          type: string
+          description: "Current market price per token (decimal string)"
+          example: "1005.75"
+        total_cost:
+          type: string
+          description: "Total amount invested (decimal string)"
+          example: "10452.75"
+        market_value:
+          type: string
+          description: "Current market value of holding (decimal string)"
+          example: "10560.38"
+        pnl:
+          type: string
+          description: "Profit/Loss amount (decimal string)"
+          example: "107.63"
+        pnl_percent:
+          type: string
+          description: "Profit/Loss percentage (decimal string)"
+          example: "1.03"
+
+    PortfolioSummary:
+      type: object
+      required:
+        - total_invested
+        - total_market_value
+        - total_pnl
+        - total_pnl_percent
+      properties:
+        total_invested:
+          type: string
+          description: "Total amount invested across all holdings (decimal string)"
+          example: "15462.75"
+        total_market_value:
+          type: string
+          description: "Total current market value (decimal string)"
+          example: "15551.63"
+        total_pnl:
+          type: string
+          description: "Total profit/loss amount (decimal string)"
+          example: "88.88"
+        total_pnl_percent:
+          type: string
+          description: "Total profit/loss percentage (decimal string)"
+          example: "0.57"
+
+    DashboardResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          $ref: '#/components/schemas/DashboardData'
+
+    DashboardData:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        marketplace_stats:
+          $ref: '#/components/schemas/MarketplaceStats'
+
+    UserInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Demo Wallet User"
+        wallet_balance:
+          type: string
+          description: "Available wallet balance (decimal string)"
+          example: "50000"
+        available_to_invest:
+          type: string
+          description: "Amount available for investment (decimal string)"
+          example: "45000"
+
+    MarketplaceStats:
+      type: object
+      properties:
+        total_bonds:
+          type: integer
+          description: "Total number of available bonds"
+          example: 5
+        average_ytm:
+          type: string
+          description: "Average yield to maturity across all bonds (decimal string)"
+          example: "7.22"
+
+    BondsListResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BondSummary'
+
+    BondSummary:
+      type: object
+      properties:
+        symbol:
+          type: string
+          example: "RELIANCE25"
+        name:
+          type: string
+          example: "Reliance Industries Bond 2025"
+        current_price:
+          type: string
+          example: "1000"
+        change:
+          type: string
+          example: "0"
+        change_percent:
+          type: string
+          example: "0"
+        yield_rate:
+          type: string
+          example: "7.5"
+        maturity_date:
+          type: string
+          format: date
+          example: "2026-07-25"
+        is_active:
+          type: boolean
+          example: true
+
+    BondDetailsResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          enum: ["success", "error"]
+          example: "success"
+        data:
+          $ref: '#/components/schemas/BondDetails'
+
+    BondDetails:
+      type: object
+      properties:
+        symbol:
+          type: string
+          example: "RELIANCE25"
+        name:
+          type: string
+          example: "Reliance Industries Bond 2025"
+        actual_price:
+          type: string
+          description: "Actual bond price reference"
+          example: "14500"
+        current_price:
+          type: string
+          description: "Current trading price"
+          example: "1000"
+        change:
+          type: string
+          example: "0"
+        change_percent:
+          type: string
+          example: "0"
+        yield_rate:
+          type: string
+          example: "7.5"
+        maturity_date:
+          type: string
+          format: date
+          example: "2026-07-25"
+        face_value:
+          type: string
+          example: "1000"
+        ohlc:
+          type: array
+          items:
+            $ref: '#/components/schemas/OHLCData'
+        order_book:
+          $ref: '#/components/schemas/OrderBook'
+        is_active:
+          type: boolean
+          example: true
+
+    OHLCData:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2025-07-25"
+        open:
+          type: string
+          example: "1000"
+        high:
+          type: string
+          example: "1000"
+        low:
+          type: string
+          example: "1000"
+        close:
+          type: string
+          example: "1000"
+        volume:
+          type: string
+          example: "0"
+
+    OrderBook:
+      type: object
+      properties:
+        bids:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/OrderBookEntry'
+        asks:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/OrderBookEntry'
+
+    OrderBookEntry:
+      type: object
+      properties:
+        price:
+          type: string
+          example: "999.50"
+        quantity:
+          type: string
+          example: "100"
+
+    ErrorResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 400
+        status:
+          type: string
+          enum: ["error"]
+          example: "error"
+        message:
+          type: string
+          example: "Error description"
+
+tags:
+  - name: Portfolio
+    description: Portfolio management and holdings tracking 

@@ -145,9 +145,9 @@ export const useAppStore = create<AppState>()(
     onboardingStep: 1,
 
     wallet: {
-      inrTokenBalance: 55000,
+      inrTokenBalance: 0,
       reservedBalance: 0,
-      availableBalance: 55000,
+      availableBalance: 0,
       transactionHistory: [],
       dailyDepositLimit: 200000,
       monthlyDepositLimit: 1000000,
@@ -760,9 +760,9 @@ export const useAppStore = create<AppState>()(
         isOnboarding: false,
         onboardingStep: 1,
         wallet: {
-          inrTokenBalance: 55000,
+          inrTokenBalance: 0,
           reservedBalance: 0,
-          availableBalance: 55000,
+          availableBalance: 0,
           transactionHistory: [],
           dailyDepositLimit: 200000,
           monthlyDepositLimit: 1000000,

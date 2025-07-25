@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, ArrowRight, FileText, Upload, CheckCircle, Loader2 } from 'lucide-react';
 import { OnboardingData } from '@/pages/Onboarding';
+import { useAuthStore } from '@/stores/authStore';
 
 interface KYCStepProps {
   data: OnboardingData;
@@ -17,6 +18,7 @@ const KYCStep = ({ data, updateData, onNext, onBack }: KYCStepProps) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const { setUser, user } = useAuthStore();
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -55,6 +57,15 @@ const KYCStep = ({ data, updateData, onNext, onBack }: KYCStepProps) => {
     await new Promise(resolve => setTimeout(resolve, 3000));
     setIsVerifying(false);
     setIsVerified(true);
+    
+    // Update user verification status in auth store
+    if (user) {
+      setUser({
+        ...user,
+        isVerified: true,
+        kycStatus: 'verified'
+      });
+    }
     
     // Auto proceed after verification
     setTimeout(() => {

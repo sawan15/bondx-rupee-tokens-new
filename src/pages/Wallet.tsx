@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useAppStore } from '@/stores/appStore';
+import { useState, useEffect } from 'react';
+import { useAuthStore } from '@/stores/authStore';
+import { ApiService, WalletResponse } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,9 +25,48 @@ import { TransactionHistory } from '@/components/wallet/TransactionHistory';
 import { toast } from '@/hooks/use-toast';
 
 const Wallet = () => {
-  const { wallet, portfolio, user } = useAppStore();
+  const { user } = useAuthStore();
+  
+  // API state
+  const [walletData, setWalletData] = useState<WalletResponse['data'] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [showDepositFlow, setShowDepositFlow] = useState(false);
   const [showWithdrawFlow, setShowWithdrawFlow] = useState(false);
+
+  // Fetch wallet data
+  useEffect(() => {
+    const fetchWallet = async () => {
+      if (!user?.id) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await ApiService.getUserWallet(user.id);
+        if (response.status === 'success') {
+          setWalletData(response.data);
+        } else {
+          throw new Error('Failed to fetch wallet data');
+        }
+      } catch (err: any) {
+        setError(err.message);
+        // Fallback data as mentioned in API docs
+        setWalletData({
+          balance: "0",
+          blocked_amount: "0",
+          available: "0",
+          total_deposited: "0",
+          max_deposit_limit: "1000000"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWallet();
+  }, [user?.id]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -49,8 +89,9 @@ const Wallet = () => {
     });
   };
 
-  const dailyDepositProgress = (wallet.todayDeposited / wallet.dailyDepositLimit) * 100;
-  const monthlyDepositProgress = (wallet.monthDeposited / wallet.monthlyDepositLimit) * 100;
+  // Calculate progress with fallbacks (API doesn't provide these limits, so using static values)
+  const dailyDepositProgress = 0; // Not available in API
+  const monthlyDepositProgress = 0; // Not available in API
 
   if (showDepositFlow) {
     return (
@@ -108,14 +149,18 @@ const Wallet = () => {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-primary mb-4">
-              {formatNumber(wallet.inrTokenBalance)} INR
+              {isLoading ? (
+                <div className="animate-pulse bg-gray-200 h-10 w-32 rounded"></div>
+              ) : (
+                formatCurrency(parseFloat(walletData?.balance || "0"))
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="glass-card p-4">
                 <div className="text-sm text-muted-foreground mb-1">Available to Trade</div>
                 <div className="text-xl font-semibold text-success">
-                  {formatCurrency(wallet.availableBalance)}
+                  {formatCurrency(parseFloat(walletData?.available || "0"))}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Ready for bond purchases
@@ -125,7 +170,7 @@ const Wallet = () => {
               <div className="glass-card p-4">
                 <div className="text-sm text-muted-foreground mb-1">Reserved in Orders</div>
                 <div className="text-xl font-semibold text-warning">
-                  {formatCurrency(wallet.reservedBalance)}
+                  {formatCurrency(parseFloat(walletData?.blocked_amount || "0"))}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Locked in pending trades
@@ -185,23 +230,23 @@ const Wallet = () => {
             <div>
               <div className="flex justify-between text-sm mb-2">
                 <span>Daily Deposit Limit</span>
-                <span>{formatCurrency(wallet.todayDeposited)} / {formatCurrency(wallet.dailyDepositLimit)}</span>
+                <span>{formatCurrency(parseFloat(walletData?.total_deposited || "0"))} / ₹50,000</span>
               </div>
               <Progress value={dailyDepositProgress} className="h-2" />
               <div className="text-xs text-muted-foreground mt-1">
-                {formatCurrency(wallet.dailyDepositLimit - wallet.todayDeposited)} remaining today
+                ₹50,000 remaining today (limit not enforced in demo)
               </div>
             </div>
 
             {/* Monthly Limit */}
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span>Monthly Deposit Limit</span>
-                <span>{formatCurrency(wallet.monthDeposited)} / {formatCurrency(wallet.monthlyDepositLimit)}</span>
+                <span>Maximum Deposit Limit</span>
+                <span>{formatCurrency(parseFloat(walletData?.total_deposited || "0"))} / {formatCurrency(parseFloat(walletData?.max_deposit_limit || "1000000"))}</span>
               </div>
               <Progress value={monthlyDepositProgress} className="h-2" />
               <div className="text-xs text-muted-foreground mt-1">
-                {formatCurrency(wallet.monthlyDepositLimit - wallet.monthDeposited)} remaining this month
+                {formatCurrency(parseFloat(walletData?.max_deposit_limit || "1000000") - parseFloat(walletData?.total_deposited || "0"))} remaining
               </div>
             </div>
           </CardContent>
@@ -257,25 +302,25 @@ const Wallet = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-3 glass-card">
                 <div className="text-2xl font-bold text-success">
-                  {formatCurrency(wallet.todayDeposited)}
+                  {formatCurrency(parseFloat(walletData?.total_deposited || "0"))}
                 </div>
-                <div className="text-xs text-muted-foreground">Deposited</div>
+                <div className="text-xs text-muted-foreground">Total Deposited</div>
               </div>
               
               <div className="text-center p-3 glass-card">
                 <div className="text-2xl font-bold text-primary">
-                  {formatCurrency(portfolio.totalInvested)}
+                  ₹0
                 </div>
-                <div className="text-xs text-muted-foreground">Invested</div>
+                <div className="text-xs text-muted-foreground">Invested (Portfolio Integration Needed)</div>
               </div>
             </div>
             
             <div className="text-center p-3 glass-card">
               <div className="text-lg font-semibold">
-                {portfolio.holdings.length} Active Positions
+                0 Active Positions
               </div>
               <div className="text-xs text-muted-foreground">
-                Across {new Set(portfolio.holdings.map(h => h.bondId)).size} different bonds
+                Portfolio integration needed for holdings data
               </div>
             </div>
           </CardContent>
@@ -289,17 +334,18 @@ const Wallet = () => {
         </CardHeader>
         <CardContent>
           <TransactionHistory 
-            transactions={wallet.transactionHistory.slice(0, 10)}
+            transactions={[]}
             onCopyTransactionId={copyToClipboard}
           />
           
-          {wallet.transactionHistory.length > 10 && (
-            <div className="text-center mt-4">
-              <Button variant="outline">
+                      <div className="text-center mt-4">
+              <div className="text-sm text-muted-foreground mb-2">
+                Transaction history integration needed
+              </div>
+              <Button variant="outline" disabled>
                 View All Transactions
               </Button>
             </div>
-          )}
         </CardContent>
       </Card>
     </div>

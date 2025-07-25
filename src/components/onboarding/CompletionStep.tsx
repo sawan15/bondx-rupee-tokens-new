@@ -116,8 +116,8 @@ const CompletionStep = ({ onComplete }: CompletionStepProps) => {
               <div className="text-sm text-muted-foreground">Profile Set</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-primary">₹55,000</div>
-              <div className="text-sm text-muted-foreground">Ready to Invest</div>
+              <div className="text-2xl font-bold text-primary">₹0</div>
+              <div className="text-sm text-muted-foreground">Initial Balance</div>
             </div>
           </div>
         </CardContent>
