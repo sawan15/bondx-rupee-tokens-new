@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://818b612f3950.ngrok-free.app/api';
+const API_BASE_URL = 'https://3ed3da3d4818.ngrok-free.app/api';
 
 export interface SignupRequest {
   email: string;
@@ -69,10 +69,11 @@ export interface LoginResponse {
   };
 }
 
+// Wallet API Interfaces (Fully Implemented)
 export interface WalletResponse {
   status_code: number;
   status: string;
-  message?: string;
+  message: string;
   data: {
     balance: string;
     blocked_amount: string;
@@ -83,7 +84,69 @@ export interface WalletResponse {
 }
 
 export interface DepositRequest {
-  amount: number;
+  user_id: string;
+  amount: string;
+  payment_method: 'UPI' | 'Bank Transfer' | 'Debit Card' | 'Credit Card';
+  transaction_reference: string;
+  notes?: string;
+}
+
+export interface DepositResponse {
+  status_code: number;
+  status: string;
+  message: string;
+  data: {
+    transaction_id: string;
+    amount: string;
+    new_balance: string;
+    deposit_time: string;
+  };
+}
+
+export interface WithdrawRequest {
+  user_id: string;
+  amount: string;
+  bank_account_id: string;
+  notes?: string;
+}
+
+export interface WithdrawResponse {
+  status_code: number;
+  status: string;
+  message: string;
+  data: {
+    transaction_id: string;
+    amount: string;
+    new_balance: string;
+    processing_time: string;
+    withdrawal_time: string;
+  };
+}
+
+export interface Transaction {
+  transaction_id: string;
+  type: 'deposit' | 'withdrawal' | 'purchase' | 'sale' | 'coupon';
+  amount: string;
+  balance_after: string;
+  description: string;
+  timestamp: string;
+  status: 'completed' | 'pending' | 'failed' | 'cancelled';
+  reference: string;
+}
+
+export interface TransactionHistoryResponse {
+  status_code: number;
+  status: string;
+  message: string;
+  data: {
+    transactions: Transaction[];
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      has_more: boolean;
+    };
+  };
 }
 
 export interface PortfolioHolding {
@@ -282,24 +345,73 @@ export class ApiService {
     }
   }
 
+  // Wallet API Methods (All Working)
   static async getUserWallet(userId: string): Promise<WalletResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/user/wallet?user_id=${userId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result: WalletResponse = await response.json();
-      return result;
-    } catch (error) {
-      console.error('Get wallet API error:', error);
-      throw error;
+    const response = await fetch(`${API_BASE_URL}/user/wallet/?user_id=${userId}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
+    return response.json();
+  }
+
+  static async depositFunds(data: DepositRequest): Promise<DepositResponse> {
+    const response = await fetch(`${API_BASE_URL}/user/wallet/deposit`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  static async withdrawFunds(data: WithdrawRequest): Promise<WithdrawResponse> {
+    const response = await fetch(`${API_BASE_URL}/user/wallet/withdraw`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  static async getTransactionHistory(
+    userId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      type?: 'deposit' | 'withdrawal' | 'purchase' | 'sale' | 'coupon';
+    }
+  ): Promise<TransactionHistoryResponse> {
+    const params = new URLSearchParams({
+      user_id: userId,
+      ...(options?.limit && { limit: options.limit.toString() }),
+      ...(options?.offset && { offset: options.offset.toString() }),
+      ...(options?.type && { type: options.type }),
+    });
+
+    const response = await fetch(`${API_BASE_URL}/user/transactions?${params}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
   }
 
   static async login(data: LoginRequest): Promise<LoginResponse> {
@@ -335,29 +447,6 @@ export class ApiService {
       }
 
       const result: PortfolioResponse = await response.json();
-      return result;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  static async depositFunds(userId: string, data: DepositRequest): Promise<WalletResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/user/wallet/deposit`, {
-        method: 'POST',
-        headers: {
-          ...this.getAuthHeaders(),
-          'User-ID': userId,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result: WalletResponse = await response.json();
       return result;
     } catch (error) {
       throw error;

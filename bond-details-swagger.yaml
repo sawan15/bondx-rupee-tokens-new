@@ -8,10 +8,10 @@ info:
     email: support@bondexchange.com
 
 servers:
-  - url: https://818b612f3950.ngrok-free.app/api
-    description: Development Server (Ngrok)
+  - url: https://3ed3da3d4818.ngrok-free.app/api
+    description: Production API (Ngrok Tunnel)
   - url: http://localhost:8080/api
-    description: Local Development Server
+    description: Local Development API
 
 paths:
   /bonds/{symbol}:

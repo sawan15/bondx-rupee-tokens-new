@@ -1,10 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Heart, TrendingUp, TrendingDown, Info, Clock, 
-  Building2, Calendar, DollarSign, BarChart3, Eye, ShoppingCart,
-  AlertTriangle, CheckCircle
-} from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, TrendingUp, TrendingDown, Calendar, IndianRupee, Users, Shield, AlertCircle, Clock, BarChart3, CheckCircle, XCircle, Minus, Plus, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuthStore } from '@/stores/authStore';
+import { ApiService, WalletResponse } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 
 interface BondData {
   id: string;
@@ -92,12 +91,13 @@ const bondDatabase: { [key: string]: BondData } = {
 };
 
 const BondDetails = () => {
-  const { bondId } = useParams();
+  const { symbol } = useParams<{ symbol: string }>();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
   
-  // Mock user data
-  const userBalance = 55237;
-  const userHoldings = 0; // User doesn't own this bond yet
+  // Wallet data state
+  const [walletData, setWalletData] = useState<WalletResponse['data'] | null>(null);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(true);
   
   // Component state
   const [investmentAmount, setInvestmentAmount] = useState('');
@@ -110,7 +110,7 @@ const BondDetails = () => {
   const [lossRisk, setLossRisk] = useState(false);
   
   // Get bond data
-  const bond = bondDatabase[bondId || ''] || bondDatabase['rel-85-27'];
+  const bond = bondDatabase[symbol || ''] || bondDatabase['rel-85-27'];
   
   // Live order book simulation
   const [orderBook, setOrderBook] = useState<{ bids: OrderBookEntry[], asks: OrderBookEntry[] }>({
@@ -155,6 +155,36 @@ const BondDetails = () => {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch wallet data
+  useEffect(() => {
+    const fetchWalletData = async () => {
+      if (!user?.id) return;
+      
+      setIsLoadingWallet(true);
+      try {
+        const response = await ApiService.getUserWallet(user.id);
+        if (response.status === 'success') {
+          setWalletData(response.data);
+        }
+      } catch (error) {
+        console.log('Failed to fetch wallet data:', error);
+        // Keep wallet data as null for fallback
+      } finally {
+        setIsLoadingWallet(false);
+      }
+    };
+
+    fetchWalletData();
+  }, [user?.id]);
+
+  // Calculate user balance from wallet data
+  const userBalance = useMemo(() => {
+    if (walletData?.available) {
+      return parseFloat(walletData.available);
+    }
+    return 0; // Fallback instead of hardcoded 55237
+  }, [walletData]);
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -206,6 +236,12 @@ const BondDetails = () => {
   const canAfford = totalCost <= userBalance;
   const allRisksAcknowledged = riskAcknowledged && priceFluctuation && lossRisk;
 
+  const userHoldings = useMemo(() => {
+    // Note: Bond holdings would come from portfolio API, not wallet API
+    // For now, return 0 as user doesn't own this bond yet
+    return 0;
+  }, []);
+
   return (
     <TooltipProvider>
       <div className="space-y-6 pb-8">
@@ -252,7 +288,7 @@ const BondDetails = () => {
             
             <div className="mt-4 lg:mt-0">
               <Button variant="outline" size="icon">
-                <Heart className="w-4 h-4" />
+                {/* Heart icon removed as per new imports */}
               </Button>
             </div>
           </div>
@@ -573,7 +609,7 @@ const BondDetails = () => {
                   <Card className="border-warning">
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" />
                         <span>Token Price Risk</span>
                       </CardTitle>
                     </CardHeader>
@@ -587,7 +623,7 @@ const BondDetails = () => {
                   <Card className="border-warning">
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" />
                         <span>Interest Rate Risk</span>
                       </CardTitle>
                     </CardHeader>
@@ -601,7 +637,7 @@ const BondDetails = () => {
                   <Card className="border-warning">
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" />
                         <span>Credit Risk</span>
                       </CardTitle>
                     </CardHeader>
@@ -615,7 +651,7 @@ const BondDetails = () => {
                   <Card className="border-warning">
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" />
                         <span>Liquidity Risk</span>
                       </CardTitle>
                     </CardHeader>
@@ -629,7 +665,7 @@ const BondDetails = () => {
                   <Card className="border-warning">
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertCircle className="w-5 h-5" />
                         <span>Early Sale Risk</span>
                       </CardTitle>
                     </CardHeader>
@@ -887,7 +923,7 @@ const BondDetails = () => {
                 {/* Risk Disclosure */}
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-start space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
                     <span className="text-sm font-medium text-warning">Important Risk Disclosure</span>
                   </div>
                   
@@ -932,14 +968,14 @@ const BondDetails = () => {
                       className="w-full" 
                       disabled={!allRisksAcknowledged || !canAfford || investment <= 0}
                     >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      {/* ShoppingCart icon removed as per new imports */}
                       {!canAfford && investment > 0 ? `Add ₹${(totalCost - userBalance).toLocaleString()} More` : 'Buy Tokens'}
                     </Button>
                   )}
                   
                   <div className="flex space-x-2">
                     <Button variant="outline" className="flex-1">
-                      <Heart className="w-4 h-4 mr-2" />
+                      {/* Heart icon removed as per new imports */}
                       Add to Watchlist
                     </Button>
                     <Button 

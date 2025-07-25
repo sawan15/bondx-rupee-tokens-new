@@ -1,16 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Bell, ChevronDown, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { useAppStore } from '@/stores/appStore';
+import { ApiService, WalletResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const Header = () => {
   const location = useLocation();
   const { user, logout, isAuthenticated, resetDemo, startOnboarding, isDemoMode, currentDemoType, exitDemo } = useAuthStore();
-  const { wallet } = useAppStore();
+  const [walletData, setWalletData] = useState<WalletResponse['data'] | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Fetch wallet data for header balance display
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      if (!user?.id || !isAuthenticated) return;
+      
+      try {
+        const response = await ApiService.getUserWallet(user.id);
+        if (response.status === 'success') {
+          setWalletData(response.data);
+        }
+      } catch (error) {
+        console.log('Header wallet fetch error:', error);
+        // Keep null state for fallback
+      }
+    };
+
+    fetchWalletBalance();
+    
+    // Set up interval to refresh wallet balance every 30 seconds
+    const interval = setInterval(fetchWalletBalance, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user?.id, isAuthenticated]);
 
   const navItems = [
     { name: 'Marketplace', path: '/marketplace' },
@@ -24,13 +48,14 @@ const Header = () => {
     return location.pathname === path;
   };
 
-  const formatBalance = (balance: number) => {
+  const formatBalance = (balance: string | number) => {
+    const numBalance = typeof balance === 'string' ? parseFloat(balance) : balance;
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(balance);
+    }).format(numBalance);
   };
 
   return (
@@ -90,7 +115,7 @@ const Header = () => {
                   <div className="glass-card px-4 py-2 hover:bg-muted/80 transition-colors cursor-pointer">
                     <div className="text-xs text-muted-foreground">INR Tokens</div>
                     <div className="font-semibold text-success">
-                      {formatBalance(wallet.inrTokenBalance)}
+                      {formatBalance(walletData?.balance || '0')}
                     </div>
                   </div>
                 </Link>
@@ -197,7 +222,7 @@ const Header = () => {
                 <div className="pt-4 border-t border-nav-border">
                   <div className="text-sm text-muted-foreground">Wallet Balance</div>
                   <div className="text-lg font-semibold text-success">
-                    {formatBalance(wallet.inrTokenBalance)}
+                    {formatBalance(walletData?.balance || '0')}
                   </div>
                 </div>
               </Link>
