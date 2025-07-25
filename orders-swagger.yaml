@@ -10,8 +10,6 @@ info:
 servers:
   - url: https://ff616ef0fdef.ngrok-free.app/api
     description: Production API (Ngrok Tunnel)
-  - url: http://localhost:8080/api
-    description: Local Development API
 
 security:
   - BearerAuth: []

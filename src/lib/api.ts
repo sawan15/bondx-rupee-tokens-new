@@ -520,6 +520,67 @@ export class ApiService {
     return response.json();
   }
 
+  static async getOrderDetails(orderId: string): Promise<OrderResponse> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  static async cancelOrder(orderId: string): Promise<OrderResponse> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  static async getOrderHistory(
+    userId: string,
+    options?: {
+      from_date?: string; // ISO 8601 format
+      to_date?: string; // ISO 8601 format
+      bond_symbol?: string;
+      order_type?: 'buy' | 'sell';
+      status?: 'pending' | 'completed' | 'cancelled' | 'partial';
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<UserOrdersResponse> {
+    const params = new URLSearchParams({
+      user_id: userId,
+      ...(options?.from_date && { from_date: options.from_date }),
+      ...(options?.to_date && { to_date: options.to_date }),
+      ...(options?.bond_symbol && { bond_symbol: options.bond_symbol }),
+      ...(options?.order_type && { order_type: options.order_type }),
+      ...(options?.status && { status: options.status }),
+      ...(options?.limit && { limit: options.limit.toString() }),
+      ...(options?.offset && { offset: options.offset.toString() }),
+    });
+
+    const response = await fetch(`${API_BASE_URL}/orders/history?${params}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
   static async healthCheck(): Promise<HealthResponse> {
     try {
       const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`, {

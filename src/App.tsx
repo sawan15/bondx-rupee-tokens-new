@@ -12,6 +12,7 @@ import Portfolio from "./pages/Portfolio";
 import History from "./pages/History";
 import Learn from "./pages/Learn";
 import Wallet from "./pages/Wallet";
+import Orders from "./pages/Orders";
 import Onboarding from "./pages/Onboarding";
 import Signin from "./pages/Signin";
 import Debug from "./pages/Debug";
@@ -38,6 +39,7 @@ const App = () => {
               <Route path="/bonds/:symbol" element={<ProtectedRoute><BondDetails /></ProtectedRoute>} />
               <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
               <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+              <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
               <Route path="/learn" element={<Learn />} />
               <Route path="/onboarding" element={<Onboarding />} />

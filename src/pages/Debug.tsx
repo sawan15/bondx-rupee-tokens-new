@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import OrderTest from '@/components/orders/OrderTest';
 
 const Debug = () => {
   const authState = useAuthStore();
@@ -100,6 +101,9 @@ const Debug = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Orders API Testing */}
+      <OrderTest />
     </div>
   );
 };
