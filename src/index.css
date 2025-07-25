@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BondX Financial Platform Design System - Premium Trading Interface */
+
+@layer base {
+  :root {
+    /* Primary brand colors - Professional purple-blue gradient */
+    --primary: 258 89% 66%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 258 89% 60%;
+    --primary-muted: 258 50% 85%;
+    
+    /* Secondary accent - Financial orange */
+    --secondary: 25 95% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 25 95% 50%;
+    
+    /* Background system */
+    --background: 0 0% 100%;
+    --background-secondary: 240 5% 98%;
+    --background-tertiary: 258 15% 97%;
+    --foreground: 222 15% 15%;
+    
+    /* Card system */
+    --card: 0 0% 100%;
+    --card-foreground: 222 15% 15%;
+    --card-border: 220 13% 91%;
+    
+    /* Navigation and surfaces */
+    --nav-background: 0 0% 100%;
+    --nav-foreground: 222 15% 15%;
+    --nav-border: 220 13% 91%;
+    
+    /* Financial data colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 30% 92%;
+    
+    --danger: 0 70% 55%;
+    --danger-foreground: 0 0% 100%;
+    --danger-muted: 0 30% 95%;
+    
+    --warning: 45 95% 55%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Neutral system */
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 15% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 15% 15%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 258 89% 66%;
+    
+    /* Glass effects */
+    --glass-background: 258 50% 98%;
+    --glass-border: 258 30% 85%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(258, 89%, 66%), hsl(280, 89%, 70%));
+    --gradient-secondary: linear-gradient(135deg, hsl(25, 95%, 55%), hsl(45, 95%, 60%));
+    --gradient-bg: linear-gradient(180deg, hsl(258, 15%, 97%), hsl(240, 5%, 98%));
+    --gradient-card: linear-gradient(135deg, hsl(0, 0%, 100%), hsl(258, 15%, 99%));
+    
+    /* Shadows */
+    --shadow-soft: 0 4px 6px -1px hsl(258, 15%, 85%, 0.1), 0 2px 4px -1px hsl(258, 15%, 85%, 0.06);
+    --shadow-medium: 0 10px 15px -3px hsl(258, 15%, 80%, 0.1), 0 4px 6px -2px hsl(258, 15%, 80%, 0.05);
+    --shadow-large: 0 25px 50px -12px hsl(258, 15%, 70%, 0.25);
+    
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode for professional trading */
+    --primary: 258 89% 66%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 258 89% 70%;
+    
+    --secondary: 25 95% 55%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --background: 222 25% 8%;
+    --background-secondary: 222 20% 10%;
+    --background-tertiary: 222 15% 12%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222 20% 10%;
+    --card-foreground: 210 40% 98%;
+    --card-border: 217 32% 17%;
+    
+    --nav-background: 222 25% 8%;
+    --nav-foreground: 210 40% 98%;
+    --nav-border: 217 32% 17%;
+    
+    --success: 142 70% 50%;
+    --danger: 0 70% 60%;
+    --warning: 45 95% 60%;
+    
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 32% 17%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 222 20% 10%;
+    --popover-foreground: 210 40% 98%;
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 258 89% 66%;
+    
+    --glass-background: 222 25% 12%;
+    --glass-border: 217 32% 25%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background: var(--gradient-bg);
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover text-primary-foreground px-6 py-3 rounded-lg font-semibold transition-all duration-200 shadow-soft;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary-hover text-secondary-foreground px-6 py-3 rounded-lg font-semibold transition-all duration-200;
+  }
+  
+  .card-financial {
+    @apply bg-card border border-card-border rounded-xl p-6 shadow-soft backdrop-blur-sm;
+    background: var(--gradient-card);
+  }
+  
+  .glass-card {
+    @apply bg-glass-background/50 border border-glass-border backdrop-blur-lg rounded-xl;
+  }
+  
+  .nav-item {
+    @apply text-nav-foreground hover:text-primary transition-colors duration-200 font-medium;
+  }
+  
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
