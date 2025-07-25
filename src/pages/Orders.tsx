@@ -1,7 +1,7 @@
-import OrdersManager from '@/components/orders/OrdersManager';
+import FractionalOrdersManager from '@/components/orders/FractionalOrdersManager';
 
 const Orders = () => {
-  return <OrdersManager />;
+  return <FractionalOrdersManager />;
 };
 
 export default Orders; 

@@ -8,13 +8,13 @@ info:
     email: support@bondexchange.com
 
 servers:
-  - url: https://ff616ef0fdef.ngrok-free.app/api
+  - url: http://localhost:8085/api
     description: Production API (Ngrok Tunnel)
   - url: http://localhost:8080/api
     description: Local Development API
 
 paths:
-  /user/wallet/:
+  /user/wallet:
     get:
       tags:
         - Wallet

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://ff616ef0fdef.ngrok-free.app/api';
+const API_BASE_URL = 'http://localhost:8085/api';
 
 export interface SignupRequest {
   email: string;
@@ -81,6 +81,32 @@ export interface WalletResponse {
     available: string;
     total_deposited: string;
     max_deposit_limit: string;
+  };
+}
+
+export interface WalletDepositRequest {
+  user_id: string;
+  amount: string;
+  payment_method: 'UPI' | 'Bank Transfer' | 'Debit Card' | 'Credit Card';
+  transaction_reference: string;
+}
+
+export interface WalletWithdrawRequest {
+  user_id: string;
+  amount: string;
+  payment_method: 'UPI' | 'Bank Transfer';
+  bank_account_id?: string;
+}
+
+export interface WalletTransactionResponse {
+  status_code: number;
+  status: string;
+  message: string;
+  data: {
+    transaction_id: string;
+    amount: string;
+    new_balance: string;
+    deposit_time: string;
   };
 }
 
@@ -216,8 +242,8 @@ export interface OrderRequest {
   user_id: string;
   bond_symbol: string;
   order_type: 'buy' | 'sell';
-  quantity: string;
-  price?: string; // Optional for market orders
+  amount: string;
+  price?: string; // Required for limit orders
   order_mode: 'market' | 'limit';
 }
 
@@ -226,16 +252,18 @@ export interface OrderResponse {
   status: string;
   message: string;
   data: {
-    order_id: string;
-    user_id: string;
-    bond_symbol: string;
+    id: string;
+    symbol: string;
     order_type: 'buy' | 'sell';
-    quantity: string;
-    price: string;
     order_mode: 'market' | 'limit';
     status: 'pending' | 'completed' | 'cancelled' | 'partial';
-    total_amount: string;
+    quantity: string;
+    price: string;
+    amount: string;
+    filled_quantity: string;
+    filled_amount: string;
     created_at: string;
+    updated_at: string;
     expires_at: string;
   };
 }
@@ -271,7 +299,7 @@ export class ApiService {
   private static getAuthHeaders(token?: string) {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true', // Skip ngrok browser warning page
+              // No special headers needed for localhost
     };
     
     // Use provided token or get from localStorage
@@ -280,6 +308,18 @@ export class ApiService {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
+    // Add User-ID header for backend authentication
+    const storedUser = localStorage.getItem('bondx_user_data');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        if (userData.id) {
+          headers['User-ID'] = userData.id;
+        }
+      } catch (error) {
+        console.warn('Failed to parse user data for User-ID header:', error);
+      }
+    }
     
     return headers;
   }
@@ -316,7 +356,7 @@ export class ApiService {
 
   static async getBonds(): Promise<BondsListResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/bonds/`, {
+      const response = await fetch(`${API_BASE_URL}/bonds`, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
@@ -355,7 +395,7 @@ export class ApiService {
 
   // Wallet API Methods (All Working)
   static async getUserWallet(userId: string): Promise<WalletResponse> {
-    const response = await fetch(`${API_BASE_URL}/user/wallet/?user_id=${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/user/wallet?user_id=${userId}`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -367,7 +407,7 @@ export class ApiService {
     return response.json();
   }
 
-  static async depositFunds(data: DepositRequest): Promise<DepositResponse> {
+  static async depositFunds(data: WalletDepositRequest): Promise<WalletTransactionResponse> {
     const response = await fetch(`${API_BASE_URL}/user/wallet/deposit`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
@@ -375,13 +415,14 @@ export class ApiService {
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
     
     return response.json();
   }
 
-  static async withdrawFunds(data: WithdrawRequest): Promise<WithdrawResponse> {
+  static async withdrawFunds(data: WalletWithdrawRequest): Promise<WalletTransactionResponse> {
     const response = await fetch(`${API_BASE_URL}/user/wallet/withdraw`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
@@ -389,7 +430,8 @@ export class ApiService {
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
     
     return response.json();
@@ -583,8 +625,9 @@ export class ApiService {
 
   static async healthCheck(): Promise<HealthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`, {
+      const response = await fetch(`http://localhost:8085/health`, {
         method: 'GET',
+        headers: this.getAuthHeaders(),
       });
 
       if (!response.ok) {

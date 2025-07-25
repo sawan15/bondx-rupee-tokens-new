@@ -157,7 +157,7 @@ const BondDetails = () => {
         user_id: user.id,
         bond_symbol: symbol,
         order_type: 'buy',
-        quantity: numTokens.toString(),
+        amount: investmentAmount.toString(),
         order_mode: orderType,
         ...(orderType === 'limit' && limitPrice && { price: limitPrice })
       };
@@ -167,7 +167,7 @@ const BondDetails = () => {
       if (response.status === 'success') {
         toast({
           title: "Order Placed Successfully",
-          description: `Order for ${numTokens} tokens has been placed.`,
+          description: `${orderType.toUpperCase()} order for ₹${investmentAmount} (${numTokens} tokens) has been placed.`,
         });
 
         // Reset form
