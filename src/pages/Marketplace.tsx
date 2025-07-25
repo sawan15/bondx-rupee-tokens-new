@@ -698,7 +698,7 @@ const Marketplace = () => {
                       }
                     </Button>
                     <Button variant="outline" size="default" asChild>
-                      <Link to={`/bond-details/${bond.id}`}>
+                      <Link to={`/bonds/${bond.id}`}>
                         <BarChart3 className="w-4 h-4 mr-2" />
                         View Details
                       </Link>

@@ -13,6 +13,8 @@ import History from "./pages/History";
 import Learn from "./pages/Learn";
 import Wallet from "./pages/Wallet";
 import Onboarding from "./pages/Onboarding";
+import Signin from "./pages/Signin";
+import Debug from "./pages/Debug";
 import NotFound from "./pages/NotFound";
 import { useAppInit } from "./hooks/useAppInit";
 import { useDemoInit } from "./hooks/useDemoInit";
@@ -20,8 +22,8 @@ import { useDemoInit } from "./hooks/useDemoInit";
 const queryClient = new QueryClient();
 
 const App = () => {
-  useAppInit(); // Initialize demo data and market simulation
-  useDemoInit(); // Initialize demo accounts from localStorage
+  useAppInit(); // Initialize auth from localStorage + demo data and market simulation
+  useDemoInit(); // Initialize demo accounts ONLY if no real authentication exists
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -33,12 +35,14 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
-              <Route path="/bond-details/:bondId" element={<ProtectedRoute><BondDetails /></ProtectedRoute>} />
+              <Route path="/bonds/:symbol" element={<ProtectedRoute><BondDetails /></ProtectedRoute>} />
               <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
               <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
               <Route path="/learn" element={<Learn />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/signin" element={<Signin />} />
+              <Route path="/debug" element={<Debug />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

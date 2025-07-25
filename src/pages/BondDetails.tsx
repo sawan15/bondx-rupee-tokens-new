@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, Calendar, IndianRupee, Users, Shield, AlertCircle, Clock, BarChart3, CheckCircle, XCircle, Minus, Plus, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, BarChart3, Calendar, IndianRupee, Users, Shield, Info, CheckCircle, XCircle, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -10,190 +10,207 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/authStore';
-import { ApiService, WalletResponse } from '@/lib/api';
+import { ApiService, BondDetailsResponse, WalletResponse, OrderRequest } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
-
-interface BondData {
-  id: string;
-  name: string;
-  issuer: string;
-  rating: string;
-  sector: string;
-  ytm: number;
-  tokenPrice: number;
-  priceChange: number;
-  priceChangePercent: number;
-  totalTokens: number;
-  availableTokens: number;
-  volume24h: string;
-  maturityDate: string;
-  maturityYears: number;
-  couponRate: number;
-  tags: string[];
-  isPopular: boolean;
-  originalBondValue: number;
-}
-
-interface OrderBookEntry {
-  price: number;
-  quantity: number;
-  side: 'bid' | 'ask';
-}
-
-interface RecentTrade {
-  price: number;
-  quantity: number;
-  timestamp: string;
-}
-
-// Demo bond data
-const bondDatabase: { [key: string]: BondData } = {
-  'rel-85-27': {
-    id: 'rel-85-27',
-    name: 'Reliance Industries 8.5% 2027',
-    issuer: 'Reliance Industries Limited',
-    rating: 'AAA',
-    sector: 'Energy',
-    ytm: 8.5,
-    tokenPrice: 100.15,
-    priceChange: 0.15,
-    priceChangePercent: 0.15,
-    totalTokens: 150,
-    availableTokens: 67.5,
-    volume24h: '₹2.3Cr',
-    maturityDate: '15 Mar 2027',
-    maturityYears: 3.2,
-    couponRate: 8.5,
-    tags: ['popular'],
-    isPopular: true,
-    originalBondValue: 15000
-  },
-  'hdfc-78-26': {
-    id: 'hdfc-78-26',
-    name: 'HDFC Bank 7.8% 2026',
-    issuer: 'HDFC Bank Limited',
-    rating: 'AAA',
-    sector: 'Banking',
-    ytm: 7.8,
-    tokenPrice: 98.50,
-    priceChange: -1.50,
-    priceChangePercent: -1.5,
-    totalTokens: 250,
-    availableTokens: 89,
-    volume24h: '₹1.8Cr',
-    maturityDate: '15 Dec 2026',
-    maturityYears: 2.1,
-    couponRate: 7.8,
-    tags: [],
-    isPopular: false,
-    originalBondValue: 25000
-  }
-};
 
 const BondDetails = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const { user } = useAuthStore();
   const navigate = useNavigate();
   
-  // Wallet data state
+  // State
+  const [bondDetails, setBondDetails] = useState<BondDetailsResponse | null>(null);
   const [walletData, setWalletData] = useState<WalletResponse['data'] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
-  // Component state
-  const [investmentAmount, setInvestmentAmount] = useState('');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-  const [limitPrice, setLimitPrice] = useState('');
+  // Trading state
   const [activeTab, setActiveTab] = useState('overview');
   const [tradingTab, setTradingTab] = useState<'buy' | 'sell'>('buy');
+  const [investmentAmount, setInvestmentAmount] = useState(0);
+  const [numTokens, setNumTokens] = useState(0);
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [limitPrice, setLimitPrice] = useState('');
+  
+  // Risk acknowledgment
   const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const [priceFluctuation, setPriceFluctuation] = useState(false);
   const [lossRisk, setLossRisk] = useState(false);
-  
-  // Get bond data
-  const bond = bondDatabase[symbol || ''] || bondDatabase['rel-85-27'];
-  
-  // Live order book simulation
-  const [orderBook, setOrderBook] = useState<{ bids: OrderBookEntry[], asks: OrderBookEntry[] }>({
-    bids: [
-      { price: 99.90, quantity: 5, side: 'bid' },
-      { price: 99.80, quantity: 8, side: 'bid' },
-      { price: 99.70, quantity: 12, side: 'bid' },
-      { price: 99.60, quantity: 6, side: 'bid' }
-    ],
-    asks: [
-      { price: 100.20, quantity: 3, side: 'ask' },
-      { price: 100.30, quantity: 7, side: 'ask' },
-      { price: 100.40, quantity: 4, side: 'ask' },
-      { price: 100.50, quantity: 9, side: 'ask' }
-    ]
-  });
-  
-  // Recent trades simulation
-  const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([
-    { price: 100.15, quantity: 2.5, timestamp: '2m ago' },
-    { price: 100.10, quantity: 5.0, timestamp: '8m ago' },
-    { price: 100.20, quantity: 1.2, timestamp: '15m ago' },
-    { price: 100.05, quantity: 3.8, timestamp: '22m ago' }
-  ]);
-  
-  // Simulate live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Small random price movements
-      const change = (Math.random() - 0.5) * 0.1;
-      setOrderBook(prev => ({
-        bids: prev.bids.map(bid => ({
-          ...bid,
-          price: Math.max(99.50, bid.price + change)
-        })),
-        asks: prev.asks.map(ask => ({
-          ...ask,
-          price: Math.min(101.00, ask.price + change)
-        }))
-      }));
-    }, 5000);
+
+  // Fetch bond details
+  const fetchBondDetails = async () => {
+    if (!symbol) return;
     
-    return () => clearInterval(interval);
-  }, []);
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Fetching bond details for symbol:', symbol);
+      const response = await ApiService.getBondDetails(symbol);
+      
+      if (response.status === 'success') {
+        setBondDetails(response);
+      } else {
+        throw new Error('Failed to fetch bond details');
+      }
+    } catch (error: any) {
+      console.error('Bond details fetch error:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Fetch wallet data
-  useEffect(() => {
-    const fetchWalletData = async () => {
-      if (!user?.id) return;
-      
-      setIsLoadingWallet(true);
-      try {
-        const response = await ApiService.getUserWallet(user.id);
-        if (response.status === 'success') {
-          setWalletData(response.data);
-        }
-      } catch (error) {
-        console.log('Failed to fetch wallet data:', error);
-        // Keep wallet data as null for fallback
-      } finally {
-        setIsLoadingWallet(false);
+  const fetchWalletData = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingWallet(true);
+    
+    try {
+      const response = await ApiService.getUserWallet(user.id);
+      if (response.status === 'success') {
+        setWalletData(response.data);
       }
-    };
-
-    fetchWalletData();
-  }, [user?.id]);
-
-  // Calculate user balance from wallet data
-  const userBalance = useMemo(() => {
-    if (walletData?.available) {
-      return parseFloat(walletData.available);
+    } catch (error: any) {
+      console.error('Wallet fetch error:', error);
+    } finally {
+      setIsLoadingWallet(false);
     }
-    return 0; // Fallback instead of hardcoded 55237
+  };
+
+  useEffect(() => {
+    fetchBondDetails();
+    fetchWalletData();
+  }, [symbol, user?.id]);
+
+  // Calculations
+  const userBalance = useMemo(() => {
+    return walletData?.available ? parseFloat(walletData.available) : 0;
   }, [walletData]);
-  
-  const formatCurrency = (amount: number) => {
+
+  const tokenPrice = useMemo(() => {
+    return bondDetails ? parseFloat(bondDetails.data.current_price) : 0;
+  }, [bondDetails]);
+
+  const totalCost = useMemo(() => {
+    return numTokens * tokenPrice;
+  }, [numTokens, tokenPrice]);
+
+  const canAfford = useMemo(() => {
+    return totalCost <= userBalance;
+  }, [totalCost, userBalance]);
+
+  const allRisksAcknowledged = useMemo(() => {
+    return riskAcknowledged && priceFluctuation && lossRisk;
+  }, [riskAcknowledged, priceFluctuation, lossRisk]);
+
+  // Handle investment amount change
+  const handleInvestmentChange = (value: number) => {
+    setInvestmentAmount(value);
+    if (tokenPrice > 0) {
+      setNumTokens(Math.floor(value / tokenPrice));
+    }
+  };
+
+  // Handle token quantity change
+  const handleTokensChange = (value: number) => {
+    setNumTokens(value);
+    setInvestmentAmount(value * tokenPrice);
+  };
+
+  // Place order
+  const handlePlaceOrder = async () => {
+    if (!user?.id || !symbol || !bondDetails) {
+      toast({
+        title: "Error",
+        description: "Missing required data for order placement",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!canAfford) {
+      toast({
+        title: "Insufficient Funds",
+        description: `You need ₹${(totalCost - userBalance).toLocaleString()} more to place this order`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!allRisksAcknowledged) {
+      toast({
+        title: "Risk Acknowledgment Required",
+        description: "Please acknowledge all risk factors before placing the order",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsPlacingOrder(true);
+
+    try {
+      const orderData: OrderRequest = {
+        user_id: user.id,
+        bond_symbol: symbol,
+        order_type: 'buy',
+        quantity: numTokens.toString(),
+        order_mode: orderType,
+        ...(orderType === 'limit' && limitPrice && { price: limitPrice })
+      };
+
+      const response = await ApiService.placeOrder(orderData);
+
+      if (response.status === 'success') {
+        toast({
+          title: "Order Placed Successfully",
+          description: `Order for ${numTokens} tokens has been placed.`,
+        });
+
+        // Reset form
+        setInvestmentAmount(0);
+        setNumTokens(0);
+        setRiskAcknowledged(false);
+        setPriceFluctuation(false);
+        setLossRisk(false);
+
+        // Refresh wallet data
+        await fetchWalletData();
+      } else {
+        throw new Error('Failed to place order');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Order Failed",
+        description: error.message || "Failed to place order",
+        variant: "destructive"
+      });
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const formatCurrency = (amount: string | number) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 2
-    }).format(amount);
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(numAmount);
   };
-  
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   const getRatingColor = (rating: string) => {
     switch (rating) {
       case 'AAA':
@@ -208,43 +225,85 @@ const BondDetails = () => {
         return 'bg-muted text-muted-foreground';
     }
   };
-  
-  const calculateTokens = (amount: number) => {
-    const price = orderType === 'market' ? orderBook.asks[0]?.price || bond.tokenPrice : parseFloat(limitPrice) || bond.tokenPrice;
-    return amount / price;
-  };
-  
-  const calculateCouponIncome = (tokens: number) => {
-    return tokens * (bond.couponRate / 100) * 100; // Annual coupon income
-  };
-  
-  const calculateMaturityPayout = (tokens: number) => {
-    return tokens * 100; // Face value per token
-  };
-  
-  const marketPrice = orderBook.asks[0]?.price || bond.tokenPrice;
-  const bestBid = orderBook.bids[0]?.price || bond.tokenPrice - 0.30;
-  const spread = marketPrice - bestBid;
-  
-  const investment = parseFloat(investmentAmount) || 0;
-  const tokens = calculateTokens(investment);
-  const fee = investment * 0.001; // 0.1% fee
-  const totalCost = investment + fee;
-  const annualCoupons = calculateCouponIncome(tokens);
-  const maturityPayout = calculateMaturityPayout(tokens);
-  
-  const canAfford = totalCost <= userBalance;
-  const allRisksAcknowledged = riskAcknowledged && priceFluctuation && lossRisk;
 
-  const userHoldings = useMemo(() => {
-    // Note: Bond holdings would come from portfolio API, not wallet API
-    // For now, return 0 as user doesn't own this bond yet
-    return 0;
-  }, []);
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="flex items-center mb-6">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mr-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold">Loading Bond Details...</h1>
+        </div>
+        
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-lg text-muted-foreground mb-2">Fetching bond information...</p>
+            <p className="text-sm text-muted-foreground">
+              Loading data from {symbol || 'bond API'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !bondDetails) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="flex items-center mb-6">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mr-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold">Bond Details</h1>
+        </div>
+        
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Failed to Load Bond Details</h3>
+            <p className="text-muted-foreground mb-4">
+              {error || `Bond ${symbol} not found`}
+            </p>
+            <div className="space-x-2">
+              <Button onClick={fetchBondDetails}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/marketplace')}>
+                Back to Marketplace
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const bond = bondDetails.data;
+  
+  // Enhanced bond data with fallbacks
+  const bondInfo = {
+    ...bond,
+    issuer: 'Corporate Issuer', // Fallback
+    sector: 'Corporate', // Fallback
+    rating: 'A+', // Fallback
+    tags: ['corporate'], // Fallback
+    total_tokens: '1000', // Fallback
+    available_tokens: '500', // Fallback
+    volume_24h: '₹2.3Cr', // Fallback
+    coupon_rate: bond.yield_rate, // Using yield_rate as coupon_rate
+    minimum_investment: '1000' // Fallback
+  };
 
   return (
     <TooltipProvider>
-      <div className="space-y-6 pb-8">
+      <div className="container mx-auto px-4 py-8 max-w-6xl space-y-6">
         {/* Header Section */}
         <div className="space-y-4">
           {/* Breadcrumb */}
@@ -260,46 +319,40 @@ const BondDetails = () => {
             <span>&gt;</span>
             <span className="text-foreground">{bond.name}</span>
           </div>
-          
+
           {/* Bond Header */}
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
               <div className="flex items-center space-x-3">
                 <h1 className="text-3xl font-bold text-foreground">{bond.name}</h1>
-                <Badge className={getRatingColor(bond.rating)}>{bond.rating}</Badge>
+                <Badge className={getRatingColor(bondInfo.rating)}>{bondInfo.rating}</Badge>
               </div>
-              <p className="text-lg text-muted-foreground">{bond.issuer}</p>
+              <p className="text-lg text-muted-foreground">{bondInfo.issuer}</p>
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold text-foreground">{formatCurrency(bond.tokenPrice)}</span>
-                  <div className={`flex items-center space-x-1 ${bond.priceChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    {bond.priceChange >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  <span className="text-2xl font-bold text-foreground">{formatCurrency(bond.current_price)}</span>
+                  <div className={`flex items-center space-x-1 ${parseFloat(bond.change) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {parseFloat(bond.change) >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                     <span className="text-sm font-medium">
-                      {bond.priceChange >= 0 ? '+' : ''}{formatCurrency(bond.priceChange)} ({bond.priceChangePercent >= 0 ? '+' : ''}{bond.priceChangePercent}%)
+                      {parseFloat(bond.change) >= 0 ? '+' : ''}{formatCurrency(bond.change)} ({parseFloat(bond.change_percent) >= 0 ? '+' : ''}{bond.change_percent}%)
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {bond.isPopular && <Badge variant="secondary">🔥 Most Traded</Badge>}
-                  <Badge variant="outline">{bond.sector} Sector</Badge>
+                  {bondInfo.tags.includes('popular') && <Badge variant="secondary">🔥 Most Traded</Badge>}
+                  <Badge variant="outline">{bondInfo.sector} Sector</Badge>
                 </div>
               </div>
             </div>
-            
-            <div className="mt-4 lg:mt-0">
-              <Button variant="outline" size="icon">
-                {/* Heart icon removed as per new imports */}
-              </Button>
-            </div>
           </div>
-          
+
           {/* Key Metrics Row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Card className="text-center cursor-help">
                   <CardContent className="pt-4">
-                    <div className="text-2xl font-bold text-foreground">{bond.ytm}%</div>
+                    <div className="text-2xl font-bold text-foreground">{bond.yield_rate}%</div>
                     <div className="text-sm text-muted-foreground">YTM</div>
                   </CardContent>
                 </Card>
@@ -313,13 +366,13 @@ const BondDetails = () => {
               <TooltipTrigger asChild>
                 <Card className="text-center cursor-help">
                   <CardContent className="pt-4">
-                    <div className="text-2xl font-bold text-foreground">{formatCurrency(bond.tokenPrice)}</div>
+                    <div className="text-2xl font-bold text-foreground">{formatCurrency(bond.current_price)}</div>
                     <div className="text-sm text-muted-foreground">Token Price</div>
                   </CardContent>
                 </Card>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Current market price per token. Physical bond worth ₹{bond.originalBondValue.toLocaleString()} split into {bond.totalTokens} tokens</p>
+                <p>Current market price per token. Face value ₹{parseFloat(bond.face_value).toLocaleString()}</p>
               </TooltipContent>
             </Tooltip>
             
@@ -327,7 +380,7 @@ const BondDetails = () => {
               <TooltipTrigger asChild>
                 <Card className="text-center cursor-help">
                   <CardContent className="pt-4">
-                    <div className="text-2xl font-bold text-foreground">{bond.availableTokens}/{bond.totalTokens}</div>
+                    <div className="text-2xl font-bold text-foreground">{bondInfo.available_tokens}/{bondInfo.total_tokens}</div>
                     <div className="text-sm text-muted-foreground">Tokens Available</div>
                   </CardContent>
                 </Card>
@@ -341,18 +394,18 @@ const BondDetails = () => {
               <TooltipTrigger asChild>
                 <Card className="text-center cursor-help">
                   <CardContent className="pt-4">
-                    <div className="text-2xl font-bold text-foreground">₹{(bond.tokenPrice * bond.totalTokens / 1000).toFixed(0)}K</div>
+                    <div className="text-2xl font-bold text-foreground">₹{((parseFloat(bond.current_price) * parseFloat(bondInfo.total_tokens)) / 1000).toFixed(0)}K</div>
                     <div className="text-sm text-muted-foreground">Market Cap</div>
                   </CardContent>
                 </Card>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Total value of all tokens (Token Price × {bond.totalTokens} tokens)</p>
+                <p>Total value of all tokens (Token Price × {bondInfo.total_tokens} tokens)</p>
               </TooltipContent>
             </Tooltip>
           </div>
         </div>
-        
+
         {/* Price Chart Placeholder */}
         <Card>
           <CardHeader>
@@ -376,7 +429,7 @@ const BondDetails = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Bond Information */}
@@ -397,32 +450,30 @@ const BondDetails = () => {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">ISIN:</span>
-                        <span className="font-medium">INE002A08045</span>
+                        <span className="text-muted-foreground">Symbol:</span>
+                        <span className="font-medium">{bond.symbol}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Issue Date:</span>
-                        <span className="font-medium">15 Mar 2024</span>
+                        <span className="text-muted-foreground">Current Price:</span>
+                        <span className="font-medium">{formatCurrency(bond.current_price)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Face Value:</span>
+                        <span className="font-medium">{formatCurrency(bond.face_value)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Maturity Date:</span>
-                        <span className="font-medium">{bond.maturityDate}</span>
+                        <span className="font-medium">{formatDate(bond.maturity_date)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Original Bond Value:</span>
-                        <span className="font-medium">₹{bond.originalBondValue.toLocaleString()}</span>
+                        <span className="text-muted-foreground">Yield Rate:</span>
+                        <span className="font-medium">{bond.yield_rate}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Issue Size:</span>
-                        <span className="font-medium">₹2,500 Cr</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Coupon Frequency:</span>
-                        <span className="font-medium">Quarterly</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Next Coupon Date:</span>
-                        <span className="font-medium">15 Dec 2024</span>
+                        <span className="text-muted-foreground">Status:</span>
+                        <span className={`font-medium ${bond.is_active ? 'text-success' : 'text-destructive'}`}>
+                          {bond.is_active ? 'Active' : 'Inactive'}
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -433,28 +484,26 @@ const BondDetails = () => {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Tokens Issued:</span>
-                        <span className="font-medium">{bond.totalTokens}</span>
+                        <span className="text-muted-foreground">Total Tokens:</span>
+                        <span className="font-medium">{bondInfo.total_tokens}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tokens Available:</span>
-                        <span className="font-medium">{bond.availableTokens}</span>
+                        <span className="text-muted-foreground">Available Tokens:</span>
+                        <span className="font-medium">{bondInfo.available_tokens}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Token Face Value:</span>
-                        <span className="font-medium">₹{(bond.originalBondValue / bond.totalTokens).toFixed(0)}</span>
+                        <span className="text-muted-foreground">24h Volume:</span>
+                        <span className="font-medium">{bondInfo.volume_24h}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Current Token Price:</span>
-                        <span className="font-medium">{formatCurrency(bond.tokenPrice)}</span>
+                        <span className="text-muted-foreground">Min Investment:</span>
+                        <span className="font-medium">₹{bondInfo.minimum_investment}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">24h Trading Volume:</span>
-                        <span className="font-medium">{bond.volume24h}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Price Range Today:</span>
-                        <span className="font-medium">₹99.85 - ₹100.25</span>
+                        <span className="text-muted-foreground">Change (24h):</span>
+                        <span className={`font-medium ${parseFloat(bond.change) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                          {parseFloat(bond.change) >= 0 ? '+' : ''}{bond.change_percent}%
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -468,54 +517,27 @@ const BondDetails = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="text-muted-foreground">
-                      Reliance Industries Limited is India's largest private sector corporation. 
-                      The company operates across energy, petrochemicals, oil & gas, telecom, and retail sectors.
+                      This bond is issued by a corporate entity with strong financial fundamentals. 
+                      The issuer has a solid track record of meeting its debt obligations.
                     </p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <span className="text-muted-foreground">Market Cap:</span>
-                        <span className="ml-2 font-medium">₹17.2L Cr</span>
+                        <span className="text-muted-foreground">Sector:</span>
+                        <span className="ml-2 font-medium">{bondInfo.sector}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Revenue (FY24):</span>
-                        <span className="ml-2 font-medium">₹9.24L Cr</span>
+                        <span className="text-muted-foreground">Rating:</span>
+                        <span className="ml-2 font-medium">{bondInfo.rating}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Net Profit (FY24):</span>
-                        <span className="ml-2 font-medium">₹79,334 Cr</span>
+                        <span className="text-muted-foreground">Industry:</span>
+                        <span className="ml-2 font-medium">Financial Services</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Business Segments:</span>
-                        <span className="ml-2 font-medium">Energy, Petrochemicals, Telecom, Retail</span>
+                        <span className="text-muted-foreground">Listing:</span>
+                        <span className="ml-2 font-medium">BSE, NSE</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Credit Profile</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Credit Rating:</span>
-                      <span className="font-medium">AAA (CRISIL)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Rating Outlook:</span>
-                      <span className="font-medium">Stable</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Debt/Equity Ratio:</span>
-                      <span className="font-medium">0.23</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Interest Coverage:</span>
-                      <span className="font-medium">12.5x</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground pt-2">
-                      <strong>Rating Rationale:</strong> Strong financial profile with diversified business model
-                    </p>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -529,47 +551,15 @@ const BondDetails = () => {
                     <CardContent className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Coupon Rate:</span>
-                        <span className="font-medium">{bond.couponRate}% per annum</span>
+                        <span className="font-medium">{bondInfo.coupon_rate}% per annum</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Payment Frequency:</span>
                         <span className="font-medium">Quarterly</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Day Count:</span>
-                        <span className="font-medium">30/360</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">First Coupon:</span>
-                        <span className="font-medium">15 Jun 2024</span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Maturity Amount:</span>
-                        <span className="font-medium">₹{bond.originalBondValue.toLocaleString()}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Token Terms</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Token Coupon:</span>
-                        <span className="font-medium">₹{(bond.couponRate * 100 / 100).toFixed(2)} per year</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Quarterly Coupon:</span>
-                        <span className="font-medium">₹{(bond.couponRate * 100 / 400).toFixed(2)} per quarter</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Maturity Payout:</span>
-                        <span className="font-medium">₹100 per token</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Trading:</span>
-                        <span className="font-medium">24/7 on BondX platform</span>
+                        <span className="font-medium">{formatCurrency(bond.face_value)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Settlement:</span>
@@ -577,31 +567,27 @@ const BondDetails = () => {
                       </div>
                     </CardContent>
                   </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Security Features</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Security Type:</span>
+                        <span className="font-medium">Unsecured</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Trading:</span>
+                        <span className="font-medium">24/7 on BondX platform</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Custodian:</span>
+                        <span className="font-medium">Digital Custody</span>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Security Features</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Security Type:</span>
-                      <span className="font-medium">Unsecured with corporate guarantee</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Listing:</span>
-                      <span className="font-medium">BSE, NSE</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Custodian:</span>
-                      <span className="font-medium">ICICI Securities Services</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Trustee:</span>
-                      <span className="font-medium">IDBI Trusteeship Services</span>
-                    </div>
-                  </CardContent>
-                </Card>
               </TabsContent>
               
               <TabsContent value="risks" className="space-y-4">
@@ -615,21 +601,7 @@ const BondDetails = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-muted-foreground">
-                        Token prices fluctuate based on supply and demand. Current price ₹{bond.tokenPrice.toFixed(2)} may go up or down.
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="border-warning">
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertCircle className="w-5 h-5" />
-                        <span>Interest Rate Risk</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-muted-foreground">
-                        If market interest rates rise, token prices typically fall and vice versa.
+                        Token prices fluctuate based on supply and demand. Current price ₹{parseFloat(bond.current_price).toFixed(2)} may go up or down.
                       </p>
                     </CardContent>
                   </Card>
@@ -643,7 +615,7 @@ const BondDetails = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-muted-foreground">
-                        Risk that {bond.issuer} may default on payments. {bond.rating} rating indicates very low risk.
+                        Risk that the issuer may default on payments. {bondInfo.rating} rating indicates low risk.
                       </p>
                     </CardContent>
                   </Card>
@@ -661,20 +633,6 @@ const BondDetails = () => {
                       </p>
                     </CardContent>
                   </Card>
-                  
-                  <Card className="border-warning">
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2 text-warning">
-                        <AlertCircle className="w-5 h-5" />
-                        <span>Early Sale Risk</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-muted-foreground">
-                        Selling before maturity may result in capital gains or losses depending on token price.
-                      </p>
-                    </CardContent>
-                  </Card>
                 </div>
               </TabsContent>
             </Tabs>
@@ -686,68 +644,29 @@ const BondDetails = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-destructive rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                   <span>Live Order Book</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Order Book Table */}
-                <div className="space-y-2">
-                  <div className="grid grid-cols-5 gap-2 text-xs font-medium text-muted-foreground">
-                    <span>Qty</span>
-                    <span>Bid</span>
-                    <span className="text-center">|</span>
-                    <span>Ask</span>
-                    <span className="text-right">Qty</span>
+                <div className="text-center py-4">
+                  <div className="text-sm text-muted-foreground">
+                    Current Price: <span className="font-medium text-foreground">{formatCurrency(bond.current_price)}</span>
                   </div>
-                  
-                  {orderBook.bids.slice(0, 4).map((bid, index) => {
-                    const ask = orderBook.asks[index];
-                    return (
-                      <div key={index} className="grid grid-cols-5 gap-2 text-sm">
-                        <span className="text-success">{bid.quantity}</span>
-                        <span className="text-success">₹{bid.price.toFixed(2)}</span>
-                        <span className="text-center text-muted-foreground">|</span>
-                        <span className="text-destructive">₹{ask?.price.toFixed(2) || '-'}</span>
-                        <span className="text-right text-destructive">{ask?.quantity || '-'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Spread Information */}
-                <div className="pt-2 border-t space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Best Bid:</span>
-                    <span className="text-success">₹{bestBid.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Best Ask:</span>
-                    <span className="text-destructive">₹{marketPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Spread:</span>
-                    <span>₹{spread.toFixed(2)} ({((spread / marketPrice) * 100).toFixed(2)}%)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Trade:</span>
-                    <span>₹{bond.tokenPrice.toFixed(2)} (2m ago)</span>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Face Value: {formatCurrency(bond.face_value)}
                   </div>
                 </div>
                 
-                {/* Recent Trades */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Recent Trades</h4>
-                  <div className="space-y-1">
-                    {recentTrades.slice(0, 4).map((trade, index) => (
-                      <div key={index} className="flex justify-between text-xs">
-                        <span className="text-foreground">₹{trade.price.toFixed(2)}</span>
-                        <span className="text-muted-foreground">{trade.quantity} tokens</span>
-                        <span className="text-muted-foreground">{trade.timestamp}</span>
-                      </div>
-                    ))}
+                {bond.order_book?.bids || bond.order_book?.asks ? (
+                  <div className="text-center text-sm text-success">
+                    Live order book data available
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center text-sm text-muted-foreground">
+                    No active orders currently
+                  </div>
+                )}
               </CardContent>
             </Card>
             
@@ -777,17 +696,6 @@ const BondDetails = () => {
               <CardContent className="space-y-4">
                 {tradingTab === 'buy' ? (
                   <div className="space-y-4">
-                    {/* Educational Tip */}
-                    <div className="bg-primary-muted/30 border border-primary-muted rounded p-3">
-                      <div className="flex items-start space-x-2">
-                        <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Market Order:</strong> Buy instantly at current ask price (₹{marketPrice.toFixed(2)}). 
-                          <strong>Limit Order:</strong> Set your max price and wait for match.
-                        </p>
-                      </div>
-                    </div>
-                    
                     {/* Order Type */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Order Type</label>
@@ -809,9 +717,6 @@ const BondDetails = () => {
                           Limit Order
                         </Button>
                       </div>
-                      {orderType === 'market' && (
-                        <p className="text-xs text-muted-foreground">Buy instantly at ₹{marketPrice.toFixed(2)}</p>
-                      )}
                     </div>
                     
                     {/* Limit Price (if limit order) */}
@@ -820,7 +725,7 @@ const BondDetails = () => {
                         <label className="text-sm font-medium">Max Price per Token</label>
                         <Input
                           type="number"
-                          placeholder="₹100.00"
+                          placeholder="₹1000.00"
                           value={limitPrice}
                           onChange={(e) => setLimitPrice(e.target.value)}
                         />
@@ -829,55 +734,69 @@ const BondDetails = () => {
                     
                     {/* Investment Amount */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Investment Amount (INR Tokens)</label>
+                      <label className="text-sm font-medium">Investment Amount (INR)</label>
                       <Input
                         type="number"
                         placeholder="₹0"
-                        value={investmentAmount}
-                        onChange={(e) => setInvestmentAmount(e.target.value)}
+                        value={investmentAmount || ''}
+                        onChange={(e) => handleInvestmentChange(parseFloat(e.target.value) || 0)}
                       />
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => setInvestmentAmount('1000')}>₹1K</Button>
-                        <Button variant="outline" size="sm" onClick={() => setInvestmentAmount('5000')}>₹5K</Button>
-                        <Button variant="outline" size="sm" onClick={() => setInvestmentAmount('10000')}>₹10K</Button>
-                        <Button variant="outline" size="sm" onClick={() => setInvestmentAmount('25000')}>₹25K</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(1000)}>₹1K</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(5000)}>₹5K</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(10000)}>₹10K</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(25000)}>₹25K</Button>
                       </div>
                     </div>
                     
-                    {/* Calculation Display */}
-                    {investment > 0 && (
+                    {/* Number of Tokens */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Number of Tokens</label>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleTokensChange(Math.max(0, numTokens - 1))}
+                          disabled={numTokens <= 0}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          value={numTokens || ''}
+                          onChange={(e) => handleTokensChange(parseFloat(e.target.value) || 0)}
+                          className="text-center"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleTokensChange(numTokens + 1)}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Order Summary */}
+                    {investmentAmount > 0 && (
                       <div className="bg-muted/30 border rounded p-3 space-y-2">
                         <h4 className="text-sm font-medium">Order Summary</h4>
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Investment Amount:</span>
-                            <span>₹{investment.toLocaleString()}</span>
+                            <span>₹{investmentAmount.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Token Price:</span>
-                            <span>₹{(orderType === 'market' ? marketPrice : parseFloat(limitPrice) || marketPrice).toFixed(2)}</span>
+                            <span>₹{tokenPrice.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Tokens You'll Get:</span>
-                            <span className="font-medium">{tokens.toFixed(3)} tokens</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Transaction Fee:</span>
-                            <span>₹{fee.toFixed(2)} (0.1%)</span>
+                            <span className="font-medium">{numTokens} tokens</span>
                           </div>
                           <div className="flex justify-between border-t pt-1">
                             <span className="font-medium">Total Cost:</span>
                             <span className="font-medium">₹{totalCost.toLocaleString()}</span>
-                          </div>
-                          <div className="pt-2 border-t space-y-1">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Annual Coupons:</span>
-                              <span className="text-success">₹{annualCoupons.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Maturity Payout:</span>
-                              <span className="text-success">₹{maturityPayout.toFixed(2)}</span>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -888,13 +807,13 @@ const BondDetails = () => {
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Available Balance:</span>
-                          <span className="font-medium">₹{userBalance.toLocaleString()} INR tokens</span>
+                          <span className="font-medium">₹{userBalance.toLocaleString()}</span>
                         </div>
-                        {investment > 0 && (
+                        {investmentAmount > 0 && (
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">After Purchase:</span>
                             <span className={`font-medium ${canAfford ? 'text-foreground' : 'text-destructive'}`}>
-                              ₹{(userBalance - totalCost).toLocaleString()} INR tokens
+                              ₹{(userBalance - totalCost).toLocaleString()}
                             </span>
                           </div>
                         )}
@@ -903,19 +822,16 @@ const BondDetails = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Sell Tab Content */}
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">You currently own:</p>
-                      <p className="text-2xl font-bold">{userHoldings} tokens</p>
+                      <p className="text-2xl font-bold">0 tokens</p>
                       <p className="text-sm text-muted-foreground">of this bond</p>
-                      {userHoldings === 0 && (
-                        <Button 
-                          className="mt-4"
-                          onClick={() => setTradingTab('buy')}
-                        >
-                          Buy Tokens First
-                        </Button>
-                      )}
+                      <Button 
+                        className="mt-4"
+                        onClick={() => setTradingTab('buy')}
+                      >
+                        Buy Tokens First
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -966,16 +882,24 @@ const BondDetails = () => {
                   {tradingTab === 'buy' && (
                     <Button 
                       className="w-full" 
-                      disabled={!allRisksAcknowledged || !canAfford || investment <= 0}
+                      disabled={!allRisksAcknowledged || !canAfford || investmentAmount <= 0 || isPlacingOrder}
+                      onClick={handlePlaceOrder}
                     >
-                      {/* ShoppingCart icon removed as per new imports */}
-                      {!canAfford && investment > 0 ? `Add ₹${(totalCost - userBalance).toLocaleString()} More` : 'Buy Tokens'}
+                      {isPlacingOrder ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Placing Order...
+                        </>
+                      ) : !canAfford && investmentAmount > 0 ? (
+                        `Add ₹${(totalCost - userBalance).toLocaleString()} More`
+                      ) : (
+                        'Buy Tokens'
+                      )}
                     </Button>
                   )}
                   
                   <div className="flex space-x-2">
                     <Button variant="outline" className="flex-1">
-                      {/* Heart icon removed as per new imports */}
                       Add to Watchlist
                     </Button>
                     <Button 
@@ -984,8 +908,40 @@ const BondDetails = () => {
                       className="flex-1"
                     >
                       <ArrowLeft className="w-4 h-4 mr-2" />
-                      Back to Marketplace
+                      Back
                     </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* API Debug Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">API Integration Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full bg-success"></div>
+                    <span>Bond Details API</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${isLoadingWallet ? 'bg-warning animate-pulse' : walletData ? 'bg-success' : 'bg-destructive'}`}></div>
+                    <span>Wallet API</span>
+                  </div>
+                  
+                  <div className="bg-muted p-3 rounded text-xs">
+                    <p className="font-medium mb-1">Endpoint:</p>
+                    <p className="break-all">
+                      https://ff616ef0fdef.ngrok-free.app/api/bonds/{symbol}
+                    </p>
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground">
+                    <p>Balance: ₹{userBalance.toLocaleString()}</p>
+                    <p>Trading: {bond.is_active ? 'Available' : 'Not Available'}</p>
                   </div>
                 </div>
               </CardContent>

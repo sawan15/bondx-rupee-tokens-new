@@ -1,0 +1,620 @@
+openapi: 3.0.3
+info:
+  title: Bond Exchange - Buy/Sell Orders API
+  description: API endpoints for placing buy/sell orders, managing orders, and tracking order status for bond trading
+  version: 1.0.0
+  contact:
+    name: Bond Exchange Team
+    email: support@bondexchange.com
+
+servers:
+  - url: https://ff616ef0fdef.ngrok-free.app/api
+    description: Production API (Ngrok Tunnel)
+  - url: http://localhost:8080/api
+    description: Local Development API
+
+security:
+  - BearerAuth: []
+
+paths:
+  /orders:
+    post:
+      tags:
+        - Orders
+      summary: Place Buy/Sell Order
+      description: Place a buy or sell order for bonds with market or limit pricing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+            examples:
+              buy_market_order:
+                summary: Buy Market Order
+                value:
+                  user_id: "uuid-user-123"
+                  bond_symbol: "RELIANCE25"
+                  order_type: "buy"
+                  quantity: "10"
+                  order_mode: "market"
+              buy_limit_order:
+                summary: Buy Limit Order
+                value:
+                  user_id: "uuid-user-123"
+                  bond_symbol: "RELIANCE25"
+                  order_type: "buy"
+                  quantity: "5"
+                  price: "1050.00"
+                  order_mode: "limit"
+              sell_market_order:
+                summary: Sell Market Order
+                value:
+                  user_id: "uuid-user-123"
+                  bond_symbol: "TATA24"
+                  order_type: "sell"
+                  quantity: "8"
+                  order_mode: "market"
+              sell_limit_order:
+                summary: Sell Limit Order
+                value:
+                  user_id: "uuid-user-123"
+                  bond_symbol: "TATA24"
+                  order_type: "sell"
+                  quantity: "3"
+                  price: "980.50"
+                  order_mode: "limit"
+      responses:
+        '200':
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+              examples:
+                successful_order:
+                  summary: Successful Order Placement
+                  value:
+                    status_code: 200
+                    status: "success"
+                    message: "Order placed successfully"
+                    data:
+                      order_id: "order-uuid-789"
+                      user_id: "uuid-user-123"
+                      bond_symbol: "RELIANCE25"
+                      order_type: "buy"
+                      quantity: "10"
+                      price: "1045.50"
+                      order_mode: "market"
+                      status: "pending"
+                      total_amount: "10455.00"
+                      created_at: "2024-01-15T10:30:00Z"
+                      expires_at: "2024-01-15T16:30:00Z"
+        '400':
+          description: Invalid order request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficient_balance:
+                  summary: Insufficient Balance
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Insufficient balance to place order"
+                invalid_quantity:
+                  summary: Invalid Quantity
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Quantity must be greater than 0"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bond not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "Bond symbol not found"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Orders
+      summary: Get User Orders
+      description: Retrieve all orders for a user with optional filtering
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          description: User ID to fetch orders for
+          schema:
+            type: string
+            example: "uuid-user-123"
+        - name: bond_symbol
+          in: query
+          required: false
+          description: Filter orders by bond symbol
+          schema:
+            type: string
+            example: "RELIANCE25"
+        - name: status
+          in: query
+          required: false
+          description: Filter orders by status
+          schema:
+            type: string
+            enum: ['pending', 'completed', 'cancelled', 'partial']
+            example: "pending"
+        - name: order_type
+          in: query
+          required: false
+          description: Filter orders by type
+          schema:
+            type: string
+            enum: ['buy', 'sell']
+            example: "buy"
+        - name: limit
+          in: query
+          required: false
+          description: Number of orders to return (default: 50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+            example: 20
+        - name: offset
+          in: query
+          required: false
+          description: Number of orders to skip (default: 0)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOrdersResponse'
+              example:
+                status_code: 200
+                status: "success"
+                message: "Orders retrieved successfully"
+                data:
+                  orders:
+                    - order_id: "order-uuid-789"
+                      user_id: "uuid-user-123"
+                      bond_symbol: "RELIANCE25"
+                      order_type: "buy"
+                      quantity: "10"
+                      price: "1045.50"
+                      order_mode: "market"
+                      status: "completed"
+                      total_amount: "10455.00"
+                      created_at: "2024-01-15T10:30:00Z"
+                      expires_at: "2024-01-15T16:30:00Z"
+                    - order_id: "order-uuid-790"
+                      user_id: "uuid-user-123"
+                      bond_symbol: "TATA24"
+                      order_type: "sell"
+                      quantity: "5"
+                      price: "980.00"
+                      order_mode: "limit"
+                      status: "pending"
+                      total_amount: "4900.00"
+                      created_at: "2024-01-15T11:15:00Z"
+                      expires_at: "2024-01-15T17:15:00Z"
+                  pagination:
+                    total: 25
+                    limit: 50
+                    offset: 0
+                    has_more: false
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /orders/{order_id}:
+    get:
+      tags:
+        - Orders
+      summary: Get Order Details
+      description: Retrieve detailed information about a specific order
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Unique order identifier
+          schema:
+            type: string
+            example: "order-uuid-789"
+      responses:
+        '200':
+          description: Order details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "Order not found"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Orders
+      summary: Cancel Order
+      description: Cancel a pending order (only pending orders can be cancelled)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Unique order identifier
+          schema:
+            type: string
+            example: "order-uuid-789"
+      responses:
+        '200':
+          description: Order cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+              example:
+                status_code: 200
+                status: "success"
+                message: "Order cancelled successfully"
+                data:
+                  order_id: "order-uuid-789"
+                  user_id: "uuid-user-123"
+                  bond_symbol: "RELIANCE25"
+                  order_type: "buy"
+                  quantity: "10"
+                  price: "1045.50"
+                  order_mode: "limit"
+                  status: "cancelled"
+                  total_amount: "10455.00"
+                  created_at: "2024-01-15T10:30:00Z"
+                  expires_at: "2024-01-15T16:30:00Z"
+        '400':
+          description: Order cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_completed:
+                  summary: Order Already Completed
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Cannot cancel completed order"
+                already_cancelled:
+                  summary: Order Already Cancelled
+                  value:
+                    status_code: 400
+                    status: "error"
+                    message: "Order is already cancelled"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status_code: 404
+                status: "error"
+                message: "Order not found"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /orders/history:
+    get:
+      tags:
+        - Orders
+      summary: Get Order History
+      description: Retrieve comprehensive order history with advanced filtering
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          description: User ID to fetch order history for
+          schema:
+            type: string
+            example: "uuid-user-123"
+        - name: from_date
+          in: query
+          required: false
+          description: Filter orders from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-01T00:00:00Z"
+        - name: to_date
+          in: query
+          required: false
+          description: Filter orders until this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-31T23:59:59Z"
+        - name: bond_symbol
+          in: query
+          required: false
+          description: Filter by bond symbol
+          schema:
+            type: string
+            example: "RELIANCE25"
+        - name: order_type
+          in: query
+          required: false
+          description: Filter by order type
+          schema:
+            type: string
+            enum: ['buy', 'sell']
+        - name: status
+          in: query
+          required: false
+          description: Filter by order status
+          schema:
+            type: string
+            enum: ['pending', 'completed', 'cancelled', 'partial']
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Order history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOrdersResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login/signup
+
+  schemas:
+    OrderRequest:
+      type: object
+      required:
+        - user_id
+        - bond_symbol
+        - order_type
+        - quantity
+        - order_mode
+      properties:
+        user_id:
+          type: string
+          description: Unique user identifier
+          example: "uuid-user-123"
+        bond_symbol:
+          type: string
+          description: Bond symbol to trade
+          example: "RELIANCE25"
+        order_type:
+          type: string
+          enum: ['buy', 'sell']
+          description: Type of order
+          example: "buy"
+        quantity:
+          type: string
+          description: Number of bonds to trade
+          pattern: '^[1-9]\d*$'
+          example: "10"
+        price:
+          type: string
+          description: Price per bond (required for limit orders)
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1045.50"
+        order_mode:
+          type: string
+          enum: ['market', 'limit']
+          description: Order execution mode
+          example: "market"
+
+    OrderResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          description: HTTP status code
+          example: 200
+        status:
+          type: string
+          description: Response status
+          example: "success"
+        message:
+          type: string
+          description: Response message
+          example: "Order placed successfully"
+        data:
+          $ref: '#/components/schemas/OrderData'
+
+    OrderData:
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Unique order identifier
+          example: "order-uuid-789"
+        user_id:
+          type: string
+          description: User who placed the order
+          example: "uuid-user-123"
+        bond_symbol:
+          type: string
+          description: Bond symbol
+          example: "RELIANCE25"
+        order_type:
+          type: string
+          enum: ['buy', 'sell']
+          description: Order type
+          example: "buy"
+        quantity:
+          type: string
+          description: Quantity of bonds
+          example: "10"
+        price:
+          type: string
+          description: Price per bond
+          example: "1045.50"
+        order_mode:
+          type: string
+          enum: ['market', 'limit']
+          description: Order mode
+          example: "market"
+        status:
+          type: string
+          enum: ['pending', 'completed', 'cancelled', 'partial']
+          description: Current order status
+          example: "pending"
+        total_amount:
+          type: string
+          description: Total order value
+          example: "10455.00"
+        created_at:
+          type: string
+          format: date-time
+          description: Order creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          description: Order expiration timestamp
+          example: "2024-01-15T16:30:00Z"
+
+    UserOrdersResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 200
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Orders retrieved successfully"
+        data:
+          type: object
+          properties:
+            orders:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderData'
+            pagination:
+              $ref: '#/components/schemas/PaginationInfo'
+
+    PaginationInfo:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of orders
+          example: 25
+        limit:
+          type: integer
+          description: Number of orders per page
+          example: 50
+        offset:
+          type: integer
+          description: Number of orders skipped
+          example: 0
+        has_more:
+          type: boolean
+          description: Whether more orders are available
+          example: false
+
+    ErrorResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          description: HTTP status code
+          example: 400
+        status:
+          type: string
+          description: Error status
+          example: "error"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid request parameters"
+
+  responses:
+    UnauthorizedError:
+      description: Authentication token is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status_code: 401
+            status: "error"
+            message: "Unauthorized access. Please provide valid authentication token"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status_code: 500
+            status: "error"
+            message: "Internal server error. Please try again later"
+
+tags:
+  - name: Orders
+    description: Buy/Sell order management endpoints 

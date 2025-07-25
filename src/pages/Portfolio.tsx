@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { ApiService, PortfolioHolding } from '@/lib/api';
 
 // Get API base URL for debugging
-const API_BASE_URL = 'https://3ed3da3d4818.ngrok-free.app/api'; // Reference: http://localhost:8080/api
+const API_BASE_URL = 'https://ff616ef0fdef.ngrok-free.app/api'; // Reference: http://localhost:8080/api
 import { formatCurrency } from '@/lib/utils';
 
 // Demo portfolio performance data (last 6 months)

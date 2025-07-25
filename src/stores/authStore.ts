@@ -107,7 +107,7 @@ interface AuthState {
   
   // Actions
   signup: (data: SignupRequest) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   logout: () => void;
   updateBalance: (amount: number) => void;
   setUser: (user: User) => void;
@@ -187,7 +187,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
           const response = await ApiService.signup(data);
           
-          if (response.status === 'success') {
+          if (response.status === 'success' && response.status_code >= 200 && response.status_code < 300) {
             const { user_info, token } = response.data;
             
             const newUser: User = {
@@ -204,7 +204,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             // Save token and user to localStorage
             console.log('💾 Saving signup data to localStorage:', { 
               token: token.substring(0, 20) + '...', 
-              userName: newUser.name 
+              userName: newUser.name,
+              userId: newUser.id
             });
             saveTokenToStorage(token);
             saveUserToStorage(newUser);
@@ -225,14 +226,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       },
 
-      login: async (email: string, password: string) => {
+      login: async (identifier: string, password: string) => {
         set({ isLoading: true });
         
         try {
-          // Call real login API
-          const response = await ApiService.login({ email, password });
+          // Determine if identifier is email or mobile
+          const isEmail = identifier.includes('@');
+          const loginData = isEmail 
+            ? { email: identifier, password }
+            : { mobile: identifier, password };
           
-          if (response.status === 'success') {
+          // Call real login API
+          const response = await ApiService.login(loginData);
+          
+          if (response.status === 'success' && response.status_code >= 200 && response.status_code < 300) {
             const { user_info, token } = response.data;
             
             // Create user object from API response
@@ -249,6 +256,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             };
             
             // Save to localStorage
+            console.log('💾 Saving login data to localStorage:', { 
+              token: token.substring(0, 20) + '...', 
+              userName: user.name,
+              userId: user.id
+            });
             saveTokenToStorage(token);
             saveUserToStorage(user);
             
@@ -326,8 +338,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Update localStorage with completed user data
       console.log('🎉 Completing onboarding and authenticating user:', { 
-        userName: updatedUser.name, 
-        isOnboarded: updatedUser.isOnboarded 
+        userName: updatedUser.name,
+        userId: updatedUser.id, 
+        isOnboarded: updatedUser.isOnboarded,
+        isVerified: updatedUser.isVerified
       });
       saveUserToStorage(updatedUser);
       
@@ -354,11 +368,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   switchDemoAccount: (accountType: 'new_investor' | 'experienced_investor') => {
+    console.log('🎭 switchDemoAccount called with:', accountType);
     const account = accountType === 'new_investor' ? newInvestorAccount : experiencedInvestorAccount;
     
     localStorage.setItem('bondx_demo_mode', accountType);
     
     if (accountType === 'new_investor') {
+      console.log('🎭 Setting new investor demo account');
       set({
         user: account.user,
         isAuthenticated: false,
@@ -369,6 +385,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false
       });
     } else {
+      console.log('🎭 Setting experienced investor demo account');
       set({
         user: account.user,
         isAuthenticated: true,
@@ -395,7 +412,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
+  /**
+   * Initialize authentication from localStorage on app start
+   * 
+   * LOGIC:
+   * - If we have both token + user data → User is AUTHENTICATED
+   * - isOnboarded determines whether they can access protected routes
+   * - Authenticated but not onboarded → Redirect to continue onboarding
+   * - Not authenticated → Redirect to signup/signin
+   */
   initializeAuth: () => {
+    console.log('🔄 initializeAuth called');
     const storedToken = getTokenFromStorage();
     const storedUser = getUserFromStorage();
     
@@ -403,22 +430,82 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       hasToken: !!storedToken, 
       hasUser: !!storedUser,
       token: storedToken?.substring(0, 20) + '...',
-      user: storedUser?.name 
+      user: storedUser?.name,
+      rawToken: storedToken ? 'EXISTS' : 'NULL',
+      rawUser: storedUser ? 'EXISTS' : 'NULL'
     });
     
     if (storedToken && storedUser) {
-      console.log('✅ Restoring session from localStorage');
+      console.log('✅ Restoring session from localStorage for user:', {
+        userName: storedUser.name,
+        userId: storedUser.id,
+        isOnboarded: storedUser.isOnboarded,
+        isVerified: storedUser.isVerified
+      });
+      
       // Restore session from localStorage
+      // Having a token means user is authenticated, regardless of onboarding status
+      const shouldBeOnboarding = !storedUser.isOnboarded;
+      
+      console.log('🎯 Setting auth state:', {
+        isAuthenticated: true,
+        isOnboarding: shouldBeOnboarding,
+        isLoading: false
+      });
+      
+      // Clean up any demo mode when restoring real authentication
+      localStorage.removeItem('bondx_demo_mode');
+      
       set({
         user: storedUser,
         token: storedToken,
-        isAuthenticated: true,
-        isOnboarding: false,
-        isLoading: false
+        isAuthenticated: true, // Always authenticate if we have valid token + user
+        isOnboarding: shouldBeOnboarding, // Onboarding status is separate from authentication
+        isLoading: false,
+        isDemoMode: false, // Ensure demo mode is disabled for real auth
+        currentDemoType: null
       });
+      
+      console.log('✅ Auth state set successfully');
     } else {
       console.log('❌ No valid session found in localStorage');
-      set({ isLoading: false });
+      console.log('🔧 Setting unauthenticated state');
+      set({ 
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isOnboarding: false,
+        isLoading: false 
+      });
     }
   }
 }));
+
+// Test function to verify token persistence
+export const testTokenPersistence = () => {
+  const token = localStorage.getItem('bondx_auth_token');
+  const user = localStorage.getItem('bondx_user_data');
+  const authState = useAuthStore.getState();
+  
+  console.log('🔍 Token Persistence Test:', {
+    localStorage: {
+      hasToken: !!token,
+      tokenPreview: token ? token.substring(0, 30) + '...' : 'null',
+      hasUser: !!user,
+      userPreview: user ? JSON.parse(user).name : 'null'
+    },
+    authStore: {
+      isAuthenticated: authState.isAuthenticated,
+      isOnboarding: authState.isOnboarding,
+      userName: authState.user?.name || 'null',
+      hasToken: !!authState.token
+    }
+  });
+  
+  return { token, user, authState };
+};
+
+// Make test function available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).testTokenPersistence = testTokenPersistence;
+}

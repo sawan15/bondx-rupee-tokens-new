@@ -1,12 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, Shield, TrendingUp, Users } from 'lucide-react';
+import { ArrowRight, Shield, TrendingUp, Users, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface WelcomeStepProps {
   onNext: () => void;
 }
 
 const WelcomeStep = ({ onNext }: WelcomeStepProps) => {
+  const navigate = useNavigate();
+
+  const handleSignIn = () => {
+    navigate('/signin');
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Section */}
@@ -74,15 +81,17 @@ const WelcomeStep = ({ onNext }: WelcomeStepProps) => {
           size="lg" 
           className="min-w-[200px] group"
         >
-          Get Started
+          Sign Up & Get Started
           <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
         </Button>
         <Button 
           variant="outline" 
           size="lg"
           className="min-w-[200px]"
+          onClick={handleSignIn}
         >
-          Learn More First
+          <LogIn className="w-4 h-4 mr-2" />
+          Sign In
         </Button>
       </div>
 

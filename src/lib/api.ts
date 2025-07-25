@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://3ed3da3d4818.ngrok-free.app/api';
+const API_BASE_URL = 'https://ff616ef0fdef.ngrok-free.app/api';
 
 export interface SignupRequest {
   email: string;
@@ -50,7 +50,8 @@ export interface DashboardResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  email?: string;
+  mobile?: string;
   password: string;
 }
 
@@ -175,6 +176,7 @@ export interface PortfolioResponse {
   };
 }
 
+// Bond Details API Interfaces (Actual Backend Response)
 export interface BondDetailsResponse {
   status_code: number;
   status: string;
@@ -200,24 +202,23 @@ export interface BondDetailsResponse {
       bids: Array<{
         price: string;
         quantity: string;
-        amount: string;
-      }>;
+      }> | null;
       asks: Array<{
         price: string;
         quantity: string;
-        amount: string;
-      }>;
+      }> | null;
     };
     is_active: boolean;
   };
 }
 
 export interface OrderRequest {
-  symbol: string;
-  side: 'buy' | 'sell';
-  type: 'market' | 'limit';
-  amount: number;
-  price?: number;
+  user_id: string;
+  bond_symbol: string;
+  order_type: 'buy' | 'sell';
+  quantity: string;
+  price?: string; // Optional for market orders
+  order_mode: 'market' | 'limit';
 }
 
 export interface OrderResponse {
@@ -225,26 +226,33 @@ export interface OrderResponse {
   status: string;
   message: string;
   data: {
-    id: string;
-    symbol: string;
-    side: 'buy' | 'sell';
-    type: 'market' | 'limit';
-    status: 'pending' | 'filled' | 'cancelled' | 'rejected';
+    order_id: string;
+    user_id: string;
+    bond_symbol: string;
+    order_type: 'buy' | 'sell';
     quantity: string;
     price: string;
-    amount: string;
-    filled_quantity: string;
-    filled_amount: string;
+    order_mode: 'market' | 'limit';
+    status: 'pending' | 'completed' | 'cancelled' | 'partial';
+    total_amount: string;
     created_at: string;
-    updated_at: string;
     expires_at: string;
   };
 }
 
-export interface OrdersListResponse {
+export interface UserOrdersResponse {
   status_code: number;
   status: string;
-  data: OrderResponse['data'][];
+  message: string;
+  data: {
+    orders: OrderResponse['data'][];
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      has_more: boolean;
+    };
+  };
 }
 
 export interface BondsListResponse {
@@ -453,65 +461,63 @@ export class ApiService {
     }
   }
 
+  // Bond Details API Methods (All Working)
   static async getBondDetails(symbol: string): Promise<BondDetailsResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/bonds/${symbol}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result: BondDetailsResponse = await response.json();
-      return result;
-    } catch (error) {
-      throw error;
+    const response = await fetch(`${API_BASE_URL}/bonds/${symbol}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
+    return response.json();
   }
 
-  static async placeOrder(userId: string, data: OrderRequest): Promise<OrderResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/orders`, {
-        method: 'POST',
-        headers: {
-          ...this.getAuthHeaders(),
-          'User-ID': userId,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result: OrderResponse = await response.json();
-      return result;
-    } catch (error) {
-      throw error;
+  static async placeOrder(data: OrderRequest): Promise<OrderResponse> {
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
+    return response.json();
   }
 
-  static async getUserOrders(userId: string): Promise<OrdersListResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/orders?user_id=${userId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result: OrdersListResponse = await response.json();
-      return result;
-    } catch (error) {
-      throw error;
+  static async getUserOrders(
+    userId: string,
+    options?: {
+      bond_symbol?: string;
+      status?: 'pending' | 'completed' | 'cancelled' | 'partial';
+      order_type?: 'buy' | 'sell';
+      limit?: number;
+      offset?: number;
     }
+  ): Promise<UserOrdersResponse> {
+    const params = new URLSearchParams({
+      user_id: userId,
+      ...(options?.bond_symbol && { bond_symbol: options.bond_symbol }),
+      ...(options?.status && { status: options.status }),
+      ...(options?.order_type && { order_type: options.order_type }),
+      ...(options?.limit && { limit: options.limit.toString() }),
+      ...(options?.offset && { offset: options.offset.toString() }),
+    });
+
+    const response = await fetch(`${API_BASE_URL}/orders?${params}`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
   }
 
   static async healthCheck(): Promise<HealthResponse> {
