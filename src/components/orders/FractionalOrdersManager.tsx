@@ -12,17 +12,23 @@ import { Calculator, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface FractionalOrder {
   id: string;
-  symbol: string;
+  order_id?: string;
+  user_id?: string;
+  bond_symbol: string;
+  symbol?: string; // Keep for backward compatibility
   order_type: 'buy' | 'sell';
   order_mode: 'market' | 'limit';
   status: 'pending' | 'completed' | 'cancelled' | 'partial';
   quantity: string;
   price: string;
-  amount: string;
-  filled_quantity: string;
-  filled_amount: string;
+  amount?: string;
+  total_amount?: string;
+  filled_quantity?: string;
+  remaining_quantity?: string;
+  filled_amount?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  expires_at?: string;
 }
 
 const FractionalOrdersManager: React.FC = () => {
@@ -89,6 +95,8 @@ const FractionalOrdersManager: React.FC = () => {
         const mappedOrders = ordersArray.map((order: any) => ({
           ...order,
           id: order.id || order.order_id || order._id, // Handle different ID field names
+          bond_symbol: order.bond_symbol || order.symbol, // Ensure bond_symbol is available
+          symbol: order.bond_symbol || order.symbol, // Keep symbol for backward compatibility
         }));
         
         console.log('🔧 Mapped orders with IDs:', mappedOrders);
@@ -335,39 +343,69 @@ const FractionalOrdersManager: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              {orders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Badge variant={order.order_type === 'buy' ? 'default' : 'secondary'}>
-                      {order.order_type.toUpperCase()}
-                    </Badge>
-                    <div>
-                      <div className="font-medium">{order.symbol}</div>
+              {orders.map((order) => {
+                // Format the created_at date
+                const formatDate = (dateString: string) => {
+                  try {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                  } catch {
+                    return dateString;
+                  }
+                };
+
+                // Get bond symbol (handle both old and new format)
+                const bondSymbol = order.bond_symbol || order.symbol || 'N/A';
+                
+                // Get amount (handle both amount and total_amount)
+                const orderAmount = order.total_amount || order.amount || '0';
+                
+                return (
+                  <div key={order.id || order.order_id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Badge variant={order.order_type === 'buy' ? 'default' : 'secondary'}>
+                        {order.order_type.toUpperCase()}
+                      </Badge>
+                                          <div>
+                      <div className="font-medium">{bondSymbol} • {order.quantity} units</div>
                       <div className="text-sm text-muted-foreground">
-                        ₹{order.amount} • {order.quantity} units • {order.order_mode}
+                        ₹{orderAmount} • {order.order_mode} • {formatDate(order.created_at)}
                       </div>
+                      {order.status === 'partial' && order.filled_quantity && order.remaining_quantity && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          📊 Filled: {parseFloat(order.filled_quantity).toFixed(4)} • Remaining: {parseFloat(order.remaining_quantity).toFixed(4)}
+                        </div>
+                      )}
+                    </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={
+                        order.status === 'completed' ? 'default' :
+                        order.status === 'pending' ? 'secondary' :
+                        order.status === 'partial' ? 'outline' :
+                        order.status === 'cancelled' ? 'destructive' : 'outline'
+                      }>
+                        {order.status}
+                      </Badge>
+                      {order.status === 'pending' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => cancelOrder(order.id || order.order_id || '')}
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={
-                      order.status === 'completed' ? 'default' :
-                      order.status === 'pending' ? 'secondary' :
-                      order.status === 'cancelled' ? 'destructive' : 'outline'
-                    }>
-                      {order.status}
-                    </Badge>
-                    {order.status === 'pending' && (
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => cancelOrder(order.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

@@ -1094,7 +1094,7 @@ const Portfolio = () => {
                       <div>
                         <p 
                           className="font-medium text-foreground cursor-pointer hover:text-primary"
-                          onClick={() => navigate(`/bond/${holding.bondId}`)}
+                          onClick={() => navigate(`/bonds/${holding.bondId}`)}
                         >
                           {holding.bondName}
                         </p>
@@ -1149,14 +1149,14 @@ const Portfolio = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/bond/${holding.bondId}`)}
+                          onClick={() => navigate(`/bonds/${holding.bondId}`)}
                         >
                           View
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/bond/${holding.bondId}?action=buy`)}
+                          onClick={() => navigate(`/bonds/${holding.bondId}?action=buy`)}
                         >
                           Buy More
                         </Button>

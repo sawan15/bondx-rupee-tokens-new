@@ -21,6 +21,7 @@ const BondDetails = () => {
   // State
   const [bondDetails, setBondDetails] = useState<BondDetailsResponse | null>(null);
   const [walletData, setWalletData] = useState<WalletResponse['data'] | null>(null);
+  const [portfolioData, setPortfolioData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -81,9 +82,25 @@ const BondDetails = () => {
     }
   };
 
+  // Fetch user's portfolio to check holdings for this bond
+  const fetchPortfolioData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await ApiService.getUserPortfolio(user.id);
+      if (response.status === 'success') {
+        setPortfolioData(response.data);
+        console.log('📊 Portfolio data:', response.data);
+      }
+    } catch (error: any) {
+      console.error('Portfolio fetch error:', error);
+    }
+  };
+
   useEffect(() => {
     fetchBondDetails();
     fetchWalletData();
+    fetchPortfolioData();
   }, [symbol, user?.id]);
 
   // Calculations
@@ -96,8 +113,9 @@ const BondDetails = () => {
   }, [bondDetails]);
 
   const totalCost = useMemo(() => {
-    return numTokens * tokenPrice;
-  }, [numTokens, tokenPrice]);
+    // Use investmentAmount directly for more accurate calculations
+    return investmentAmount || (numTokens * tokenPrice);
+  }, [investmentAmount, numTokens, tokenPrice]);
 
   const canAfford = useMemo(() => {
     return totalCost <= userBalance;
@@ -107,21 +125,39 @@ const BondDetails = () => {
     return riskAcknowledged && priceFluctuation && lossRisk;
   }, [riskAcknowledged, priceFluctuation, lossRisk]);
 
+  // Calculate user's holdings for this specific bond
+  const userHoldings = useMemo(() => {
+    if (!portfolioData?.holdings || !symbol) return { tokens: 0, avgPrice: 0, totalValue: 0 };
+    
+    const holding = portfolioData.holdings.find((h: any) => h.symbol === symbol);
+    if (!holding) return { tokens: 0, avgPrice: 0, totalValue: 0 };
+    
+    console.log(`💎 User holdings for ${symbol}:`, holding);
+    
+    return {
+      tokens: parseFloat(holding.quantity) || 0,
+      avgPrice: parseFloat(holding.average_buy_price) || 0,
+      totalValue: parseFloat(holding.market_value) || 0
+    };
+  }, [portfolioData, symbol]);
+
   // Handle investment amount change
   const handleInvestmentChange = (value: number) => {
     setInvestmentAmount(value);
     if (tokenPrice > 0) {
-      setNumTokens(Math.floor(value / tokenPrice));
+      // For fractional trading, calculate exact tokens (with decimals)
+      const calculatedTokens = value / tokenPrice;
+      setNumTokens(Math.round(calculatedTokens * 100) / 100); // Round to 2 decimal places
     }
   };
 
   // Handle token quantity change
   const handleTokensChange = (value: number) => {
     setNumTokens(value);
-    setInvestmentAmount(value * tokenPrice);
+    setInvestmentAmount(Math.round(value * tokenPrice * 100) / 100); // Round to 2 decimal places
   };
 
-  // Place order
+  // Place order (buy or sell)
   const handlePlaceOrder = async () => {
     if (!user?.id || !symbol || !bondDetails) {
       toast({
@@ -132,13 +168,36 @@ const BondDetails = () => {
       return;
     }
 
-    if (!canAfford) {
-      toast({
-        title: "Insufficient Funds",
-        description: `You need ₹${(totalCost - userBalance).toLocaleString()} more to place this order`,
-        variant: "destructive"
-      });
-      return;
+    // Validation for buy orders
+    if (tradingTab === 'buy') {
+      if (!canAfford) {
+        toast({
+          title: "Insufficient Funds",
+          description: `You need ₹${(totalCost - userBalance).toLocaleString()} more to place this order`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Validation for sell orders
+    if (tradingTab === 'sell') {
+      if (userHoldings.tokens === 0) {
+        toast({
+          title: "No Tokens to Sell",
+          description: "You don't own any tokens of this bond",
+          variant: "destructive"
+        });
+        return;
+      }
+      if (numTokens > userHoldings.tokens) {
+        toast({
+          title: "Insufficient Tokens",
+          description: `You only own ${userHoldings.tokens} tokens`,
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     if (!allRisksAcknowledged) {
@@ -156,7 +215,7 @@ const BondDetails = () => {
       const orderData: OrderRequest = {
         user_id: user.id,
         bond_symbol: symbol,
-        order_type: 'buy',
+        order_type: tradingTab, // 'buy' or 'sell'
         amount: investmentAmount.toString(),
         order_mode: orderType,
         ...(orderType === 'limit' && limitPrice && { price: limitPrice })
@@ -167,7 +226,7 @@ const BondDetails = () => {
       if (response.status === 'success') {
         toast({
           title: "Order Placed Successfully",
-          description: `${orderType.toUpperCase()} order for ₹${investmentAmount} (${numTokens} tokens) has been placed.`,
+          description: `${orderType.toUpperCase()} ${tradingTab} order for ₹${investmentAmount} (${numTokens} tokens) has been placed.`,
         });
 
         // Reset form
@@ -177,8 +236,9 @@ const BondDetails = () => {
         setPriceFluctuation(false);
         setLossRisk(false);
 
-        // Refresh wallet data
+        // Refresh data
         await fetchWalletData();
+        await fetchPortfolioData();
       } else {
         throw new Error('Failed to place order');
       }
@@ -822,19 +882,136 @@ const BondDetails = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">You currently own:</p>
-                      <p className="text-2xl font-bold">0 tokens</p>
-                      <p className="text-sm text-muted-foreground">of this bond</p>
-                      <Button 
-                        className="mt-4"
-                        onClick={() => setTradingTab('buy')}
-                      >
-                        Buy Tokens First
-                      </Button>
-                    </div>
+                    {userHoldings.tokens > 0 ? (
+                      <>
+                        {/* Holdings Summary */}
+                        <div className="bg-muted/30 border rounded p-3">
+                          <h4 className="text-sm font-medium mb-2">Your Holdings</h4>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Tokens Owned:</span>
+                              <span className="font-medium">{userHoldings.tokens}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Avg Buy Price:</span>
+                              <span className="font-medium">₹{userHoldings.avgPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Current Value:</span>
+                              <span className="font-medium">₹{userHoldings.totalValue.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Order Type */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Order Type</label>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant={orderType === 'market' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setOrderType('market')}
+                              className="flex-1"
+                            >
+                              Market Order
+                            </Button>
+                            <Button
+                              variant={orderType === 'limit' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setOrderType('limit')}
+                              className="flex-1"
+                            >
+                              Limit Order
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Limit Price (if limit order) */}
+                        {orderType === 'limit' && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Sell Price per Token</label>
+                            <Input
+                              type="number"
+                              placeholder="₹0.00"
+                              value={limitPrice}
+                              onChange={(e) => setLimitPrice(e.target.value)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Sell Amount */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Sell Amount (INR)</label>
+                          <Input
+                            type="number"
+                            placeholder="₹0"
+                            value={investmentAmount || ''}
+                            onChange={(e) => handleInvestmentChange(parseFloat(e.target.value) || 0)}
+                          />
+                          <div className="flex space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(userHoldings.totalValue * 0.25)}>25%</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(userHoldings.totalValue * 0.5)}>50%</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(userHoldings.totalValue * 0.75)}>75%</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleInvestmentChange(userHoldings.totalValue)}>100%</Button>
+                          </div>
+                        </div>
+
+                        {/* Number of Tokens */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Tokens to Sell</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={numTokens || ''}
+                            max={userHoldings.tokens}
+                            onChange={(e) => handleTokensChange(parseFloat(e.target.value) || 0)}
+                            className="text-center"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Maximum: {userHoldings.tokens} tokens
+                          </p>
+                        </div>
+
+                        {/* Order Summary */}
+                        {investmentAmount > 0 && (
+                          <div className="bg-muted/30 border rounded p-3 space-y-2">
+                            <h4 className="text-sm font-medium">Sell Order Summary</h4>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Tokens to Sell:</span>
+                                <span>{numTokens.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Sell Price:</span>
+                                <span>₹{tokenPrice.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-1">
+                                <span className="font-medium">Total Proceeds:</span>
+                                <span className="font-medium">₹{totalCost.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+
+                      </>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">You currently own:</p>
+                        <p className="text-2xl font-bold">0 tokens</p>
+                        <p className="text-sm text-muted-foreground">of this bond</p>
+                        <Button 
+                          className="mt-4"
+                          onClick={() => setTradingTab('buy')}
+                        >
+                          Buy Tokens First
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
+                
+
                 
                 {/* Risk Disclosure */}
                 <div className="space-y-3 pt-4 border-t">
@@ -897,6 +1074,26 @@ const BondDetails = () => {
                       )}
                     </Button>
                   )}
+
+                  {tradingTab === 'sell' && (
+                    <Button 
+                      className="w-full bg-red-600 hover:bg-red-700 text-white" 
+                      disabled={userHoldings.tokens === 0 || !allRisksAcknowledged || investmentAmount <= 0 || numTokens > userHoldings.tokens || isPlacingOrder}
+                      onClick={handlePlaceOrder}
+                    >
+                      {isPlacingOrder ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Placing Order...
+                        </>
+                      ) : userHoldings.tokens === 0 ? (
+                        'No Tokens to Sell'
+                      ) : (
+                        `Sell ${numTokens ? numTokens.toFixed(2) : 0} Tokens`
+                      )}
+                    </Button>
+                  )}
+                  
                   
                   <div className="flex space-x-2">
                     <Button variant="outline" className="flex-1">
